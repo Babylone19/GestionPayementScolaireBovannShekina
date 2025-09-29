@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  lastName    String
+  firstName   String
+  institution String   @default("BOVANN GROUP SAS")
+  studyLevel  String   @default("BEPC")
+  profession  String   @default("Etudiant")
+  phone       String
+  email       String
+  photo       String?
+  domain      String   @default("GENIE_INFORMATIQUE")
+  infoChannel String   @default("TIKTOK")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  payments    Payment[]
+  accessCards AccessCard[]
+
+  @@map("students")
+}
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  role      Role     @default(SECRETARY)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Payment {
+  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  amount        Float
+  validFrom     DateTime
+  validUntil    DateTime
+  status        PaymentStatus  @default(PENDING)
+  student       Student        @relation(fields: [studentId], references: [id])
+  studentId     String         @db.ObjectId
+  createdAt     DateTime       @default(now())
+
+  accessCard    AccessCard?
+
+  @@map("payments")
+}
+
+model AccessCard {
+  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  qrData     String
+  student    Student    @relation(fields: [studentId], references: [id])
+  studentId  String     @db.ObjectId
+  payment    Payment    @relation(fields: [paymentId], references: [id])
+  paymentId  String     @db.ObjectId @unique
+  scans      ScanLog[]
+
+  @@map("accessCards")
+}
+
+model ScanLog {
+  id        String       @id @default(auto()) @map("_id") @db.ObjectId
+  cardId    String       @db.ObjectId
+  card      AccessCard   @relation(fields: [cardId], references: [id])
+  scannedAt DateTime     @default(now())
+  guardianId String
+
+  @@map("scanLogs")
+}
+
+enum Role {
+  ADMIN
+  SECRETARY
+  ACCOUNTANT
+  GUARD
+}
+
+enum PaymentStatus {
+  PENDING
+  VALID
+  EXPIRED
+}

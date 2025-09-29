@@ -1,0 +1,166 @@
+# =============================================
+# BOVANN PAYMENT PLATFORM – TEST API COMMANDS
+# Backend: Node.js + Express + TypeScript + Prisma + MongoDB
+# Date: Septembre 2025
+# =============================================
+
+# 0. Vérifier que l'API est en ligne
+curl http://localhost:3000
+
+# =============================================
+# 1. AUTHENTIFICATION
+# =============================================
+
+# 1.1 Se connecter (remplace email/password par un compte existant)
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "admin@bovann.com",
+    "password": "securePassword123"
+  }'
+
+# → Récupère le token JWT dans la réponse (ex: "token": "eyJhbGciOi...")
+
+# =============================================
+# 2. GESTION DES UTILISATEURS (ADMIN uniquement)
+# =============================================
+
+# Remplace eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4 par le token obtenu ci-dessus
+
+# 2.1 Créer un secrétaire
+curl -X POST http://localhost:3000/api/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "secretary@bovann.com",
+    "password": "secretaryPass123",
+    "role": "SECRETARY"
+  }'
+
+# 2.2 Créer un comptable
+curl -X POST http://localhost:3000/api/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4\
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "accountant@bovann.com",
+    "password": "accountantPass123",
+    "role": "ACCOUNTANT"
+  }'
+
+# 2.3 Créer un gardien
+curl -X POST http://localhost:3000/api/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "guard@bovann.com",
+    "password": "guardPass123",
+    "role": "GUARD"
+  }'
+
+# 2.4 Lister tous les utilisateurs
+curl -X GET http://localhost:3000/api/users \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4
+
+# 2.5 Obtenir un utilisateur par ID (remplace <USER_ID>)
+curl -X GET http://localhost:3000/api/users/<USER_ID> \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4
+
+# 2.6 Mettre à jour un utilisateur (ex: changer rôle)
+curl -X PATCH http://localhost:3000/api/users/<USER_ID> \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "ACCOUNTANT"
+  }'
+
+# 2.7 Supprimer un utilisateur (ne pas supprimer soi-même)
+curl -X DELETE http://localhost:3000/api/users/<USER_ID> \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4
+
+# =============================================
+# 3. GESTION DES ÉTUDIANTS (SECRETARY uniquement)
+# =============================================
+
+# Connecte-toi avec le token du secrétaire (ou utilise un token ADMIN)
+
+# 3.1 Enregistrer un étudiant
+curl -X POST http://localhost:3000/api/students \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4ZDc4Nzk2MDAwYWJjZjMxOWFlZDNhMSIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTc1OTA2NTQ5MiwiZXhwIjoxNzU5MTUxODkyfQ.CqYl0mmo-U62hHX_DR-n5rUpkV2iYT7zrwuuQKcL_E4
+ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "lastName": "Nkeng",
+    "firstName": "Marie",
+    "institution": "BOVANN GROUP SAS",
+    "studyLevel": "LICENCE",
+    "profession": "Étudiante",
+    "phone": "+237612345678",
+    "email": "marie.nkeng@example.com"
+  }'
+
+# → Note l'"id" retourné (ex: "670a1b2c3d4e5f6a7b8c9d0e")
+
+# 3.2 Lister tous les étudiants
+curl -X GET http://localhost:3000/api/students \
+  -H "Authorization: Bearer <SECRETARY_TOKEN>"
+
+# =============================================
+# 4. GESTION DES PAIEMENTS (ACCOUNTANT uniquement)
+# =============================================
+
+# Connecte-toi avec le token du comptable
+
+# 4.1 Enregistrer un paiement et générer une carte d’accès
+curl -X POST http://localhost:3000/api/payments \
+  -H "Authorization: Bearer <ACCOUNTANT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "studentId": "670a1b2c3d4e5f6a7b8c9d0e",
+    "amount": 2000,
+    "validFrom": "2025-09-01T00:00:00Z",
+    "validUntil": "2026-08-31T23:59:59Z"
+  }'
+
+# → La réponse contient :
+#   - "payment": { ... }
+#   - "accessCard": { "qrData": "data:image/png;base64,iVBORw0KGgoAAAANS..." }
+
+# Conserve la valeur de "qrData" (c’est le QR code en base64)
+
+# =============================================
+# 5. SCAN DE CARTE D’ACCÈS (GUARD uniquement)
+# =============================================
+
+# Connecte-toi avec le token du gardien
+
+# 5.1 Scanner une carte (utilise le QR data retourné ci-dessus)
+# ⚠️ Le QR data est une chaîne JSON encodée dans le QR code.
+# Dans notre implémentation, le QR code contient une chaîne JSON comme :
+# {"paymentId":"...","studentId":"...","validFrom":"...","validUntil":"...","amount":2000}
+
+# Exemple de payload pour le scan :
+curl -X POST http://localhost:3000/api/cards/scan \
+  -H "Authorization: Bearer <GUARD_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "qrData": "{\"paymentId\":\"670a1b2c3d4e5f6a7b8c9d0f\",\"studentId\":\"670a1b2c3d4e5f6a7b8c9d0e\",\"validFrom\":\"2025-09-01T00:00:00.000Z\",\"validUntil\":\"2026-08-31T23:59:59.000Z\",\"amount\":2000}"
+  }'
+
+# Réponses possibles :
+# - { "success": true, "message": "Access authorized", ... }
+# - { "success": false, "message": "Already scanned today" }
+# - { "success": false, "message": "Access period not valid" }
+# - { "success": false, "message": "Invalid QR code" }
+
+# 5.2 Tester un deuxième scan le même jour → doit refuser
+# (répète la même commande → "Already scanned today")
+
+# =============================================
+# NOTES IMPORTANTES
+# =============================================
+# - Remplace toujours <TOKEN> par un token JWT valide.
+# - Les IDs (ex: studentId) doivent correspondre à des enregistrements existants.
+# - MongoDB utilise des ObjectId (24 caractères hexadécimaux).
+# - Le QR code réel est une image, mais le scanner mobile doit extraire la chaîne JSON.
+# - En production, les données du QR code devraient être chiffrées (optionnel ici).
+# =============================================
