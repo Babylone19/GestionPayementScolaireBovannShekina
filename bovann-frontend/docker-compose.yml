@@ -1,0 +1,11 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:80" 
+    container_name: bovann-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
