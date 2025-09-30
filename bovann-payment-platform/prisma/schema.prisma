@@ -2,13 +2,14 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ⚡ CHANGEMENT ICI - MongoDB → PostgreSQL
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Student {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(uuid())
   lastName    String
   firstName   String
   institution String   @default("BOVANN GROUP SAS")
@@ -29,7 +30,7 @@ model Student {
 }
 
 model User {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  id        String   @id @default(uuid())
   email     String   @unique
   password  String
   role      Role     @default(SECRETARY)
@@ -40,14 +41,14 @@ model User {
 }
 
 model Payment {
-  id            String         @id @default(auto()) @map("_id") @db.ObjectId
+  id            String        @id @default(uuid())
   amount        Float
   validFrom     DateTime
   validUntil    DateTime
-  status        PaymentStatus  @default(PENDING)
-  student       Student        @relation(fields: [studentId], references: [id])
-  studentId     String         @db.ObjectId
-  createdAt     DateTime       @default(now())
+  status        PaymentStatus @default(PENDING)
+  student       Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId     String
+  createdAt     DateTime      @default(now())
 
   accessCard    AccessCard?
 
@@ -55,22 +56,22 @@ model Payment {
 }
 
 model AccessCard {
-  id         String     @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(uuid())
   qrData     String
-  student    Student    @relation(fields: [studentId], references: [id])
-  studentId  String     @db.ObjectId
-  payment    Payment    @relation(fields: [paymentId], references: [id])
-  paymentId  String     @db.ObjectId @unique
+  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  studentId  String
+  payment    Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  paymentId  String   @unique
   scans      ScanLog[]
 
   @@map("accessCards")
 }
 
 model ScanLog {
-  id        String       @id @default(auto()) @map("_id") @db.ObjectId
-  cardId    String       @db.ObjectId
-  card      AccessCard   @relation(fields: [cardId], references: [id])
-  scannedAt DateTime     @default(now())
+  id         String     @id @default(uuid())
+  card       AccessCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId     String
+  scannedAt  DateTime   @default(now())
   guardianId String
 
   @@map("scanLogs")

@@ -1,24 +1,31 @@
 services:
+  # FRONTEND
   frontend:
     build: ./bovann-frontend
     ports:
-      - "3009:3009"  # Port React simplifié
+      - "3009:3009"
     container_name: bovann-frontend
     restart: always
     environment:
       - NODE_ENV=production
       - PORT=3009
       - REACT_APP_API_URL=http://195.26.241.68:3000/api
-      - BROWSER=none  # Évite l'ouverture automatique du navigateur
+      - BROWSER=none
     network_mode: "host"
+    depends_on:
+      - backend
 
+  # BACKEND
   backend:
     build: ./bovann-payment-platform
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=mongodb+srv://bovanngroup_db_user:x8RZy8enOIms6Czy@cluster0.bwdg8x1.mongodb.net/bovann
+      # ⚡ UTILISE VOTRE POSTGRESQL EXISTANT
+      - DATABASE_URL=postgresql://bovann_user:bovann_password_2025@host.docker.internal:5432/bovann
       - JWT_SECRET=bovann_jwt_secret_2025
       - NODE_ENV=production
     restart: unless-stopped
     network_mode: "host"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
