@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { CreateStudentDto, Student } from '../types/student';
 
-const API_URL = 'https://gestionpayementscolairebovannshekina.onrender.com/api/students';  // ← /api/students
+const API_URL = 'http://195.26.241.68:3000/api/students';  // ← /api/students
 
 interface ApiResponse {
   success: boolean;

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Payment, PaymentStatus } from '../types/payment';
 
-const PAYMENTS_API_URL = 'https://gestionpayementscolairebovannshekina.onrender.com/api/payments';  // ← /api/payments
+const PAYMENTS_API_URL = 'http://195.26.241.68:3000/api/payments';  // ← /api/payments
 
 export const createPayment = async (
   token: string,
