@@ -1,8 +1,9 @@
 import axios from 'axios';
 import { CreateStudentDto, Student } from '../types/student';
 
-const API_URL = 'http://localhost:3000/api/students';
-
+const API_URL = process.env.NODE_ENV === 'production'
+  ? 'http://backend:3000/api/auth'
+  : 'http://localhost:3000/api/auth';
 interface ApiResponse {
   success: boolean;
   students?: Student[];
