@@ -109,7 +109,7 @@ const PaymentManagement: React.FC = () => {
     setSelectedStudent(student);
     setShowStudentList(false);
     try {
-      const response = await fetch(`http://localhost:3000/api/payments?studentId=${student.id}`, {
+      const response = await fetch(`https://gestionpayementscolairebovannshekina.onrender.com/api/payments?studentId=${student.id}`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -184,7 +184,7 @@ const PaymentManagement: React.FC = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:3000/api/payments', {
+      const response = await fetch('https://gestionpayementscolairebovannshekina.onrender.com/api/payments', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,7 +247,7 @@ const PaymentManagement: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch(`http://localhost:3000/api/payments/${paymentId}/status`, {
+      const response = await fetch(`https://gestionpayementscolairebovannshekina.onrender.com/api/payments/${paymentId}/status`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
