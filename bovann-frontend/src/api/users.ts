@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { CreateUserDto, User } from '../types/user';
 
-const API_URL = process.env.NODE_ENV === 'production'
-  ? 'http://backend:3000/api/auth'
-  : 'http://localhost:3000/api/auth';
+const API_URL = 'http://localhost:3000/api/users';  // ← /api/users
+
 export const createUser = async (token: string, user: CreateUserDto): Promise<User> => {
   const response = await axios.post(API_URL, user, {
     headers: {

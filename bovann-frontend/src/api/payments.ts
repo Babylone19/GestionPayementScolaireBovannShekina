@@ -1,9 +1,7 @@
 import axios from 'axios';
 import { Payment, PaymentStatus } from '../types/payment';
 
-const PAYMENTS_API_URL = process.env.NODE_ENV === 'production'
-  ? 'http://backend:3000/api/auth'
-  : 'http://localhost:3000/api/auth';
+const PAYMENTS_API_URL = 'http://localhost:3000/api/payments';  // ← /api/payments
 
 export const createPayment = async (
   token: string,
