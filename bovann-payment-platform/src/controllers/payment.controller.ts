@@ -13,33 +13,32 @@ export const createPayment = async (req: Request, res: Response, next: NextFunct
 
     if (!student) return next(new ApiError(404, 'Student not found'));
 
-    // Créer le paiement directement en statut VALID
     const payment = await prisma.payment.create({
       data: {
         amount: amount,
         validFrom: new Date(validFrom),
         validUntil: new Date(validUntil),
-        status: 'VALID', // Directement validé
+        status: 'VALID',
         studentId: studentId,
       },
     });
 
-    // Générer les données pour le QR code
-    // Générer du texte clair pour le QR code
+    const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
+    const verificationUrl = `${serverUrl}/api/public/verify-public?studentId=${student.id}`;
+
     const qrData = `
-ÉTUDIANT: ${student.firstName} ${student.lastName}
+ETUDIANT: ${student.firstName} ${student.lastName}
 INSTITUTION: ${student.institution}
 MONTANT: ${amount} ${currency}
 VALIDE DU: ${new Date(validFrom).toLocaleDateString('fr-FR')}
-VALIDE JUSQU'AU: ${new Date(validUntil).toLocaleDateString('fr-FR')}
+VALIDE JUSQU AU: ${new Date(validUntil).toLocaleDateString('fr-FR')}
 STATUT: VALIDE
 
-URL DE VÉRIFICATION: http://localhost:3000/api/public/verify-public?studentId=${student.id}
+URL DE VERIFICATION: ${verificationUrl}
 `;
 
     const qrImage = await generateQR(qrData);
 
-    // Vérifier si une carte existe déjà
     const existingAccessCard = await prisma.accessCard.findFirst({
       where: { studentId: studentId }
     });
@@ -72,12 +71,11 @@ URL DE VÉRIFICATION: http://localhost:3000/api/public/verify-public?studentId=$
       }
     });
   } catch (err) {
-    console.error('Erreur création paiement:', err);
+    console.error('Erreur creation paiement:', err);
     next(new ApiError(500, 'Failed to create payment and card'));
   }
 };
 
-// AJOUTEZ CES FONCTIONS MANQUANTES
 export const getPaymentsByStudent = async (req: Request, res: Response, next: NextFunction) => {
   const { studentId } = req.query;
 
@@ -97,7 +95,7 @@ export const getPaymentsByStudent = async (req: Request, res: Response, next: Ne
 
     res.json({ success: true, payments });
   } catch (err) {
-    console.error('Erreur récupération paiements:', err);
+    console.error('Erreur recuperation paiements:', err);
     next(new ApiError(500, 'Failed to fetch payments'));
   }
 };
@@ -106,7 +104,6 @@ export const updatePaymentStatus = async (req: Request, res: Response, next: Nex
   const { paymentId } = req.params;
   const { status } = req.body;
 
-  // Validation du statut
   const validStatuses = ['PENDING', 'VALID', 'EXPIRED'];
   if (!validStatuses.includes(status)) {
     return next(new ApiError(400, `Invalid status value. Must be one of: ${validStatuses.join(', ')}`));
@@ -120,7 +117,7 @@ export const updatePaymentStatus = async (req: Request, res: Response, next: Nex
 
     res.json({ success: true, payment });
   } catch (err: any) {
-    console.error('Erreur mise à jour statut:', err);
+    console.error('Erreur mise a jour statut:', err);
     if (err.code === 'P2025') {
       return next(new ApiError(404, 'Payment not found'));
     }
