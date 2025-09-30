@@ -1,36 +1,26 @@
 services:
-  # FRONTEND
   frontend:
     build:
       context: ./bovann-frontend
       dockerfile: Dockerfile
     ports:
-      - "8081:80"  # Garde ton port habituel
+      - "8081:80"
     container_name: bovann-frontend
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=http://localhost:3000/api  # Pour le frontend
-    depends_on:
-      - backend
-    networks:
-      - bovann-network
+      - REACT_APP_API_URL=http://195.26.241.68:3000/api  # Utilise l'IP publique
+    network_mode: "host"
 
-  # BACKEND (SANS MongoDB local)
   backend:
     build:
       context: ./bovann-payment-platform
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"  # Backend sur le port 3000
+      - "3000:3000"
     environment:
       - DATABASE_URL=mongodb+srv://bovanngroup_db_user:x8RZy8enOIms6Czy@cluster0.bwdg8x1.mongodb.net/bovann
       - JWT_SECRET=bovann_jwt_secret_2025
       - NODE_ENV=production
     restart: unless-stopped
-    networks:
-      - bovann-network
-
-networks:
-  bovann-network:
-    driver: bridge
+    network_mode: "host"

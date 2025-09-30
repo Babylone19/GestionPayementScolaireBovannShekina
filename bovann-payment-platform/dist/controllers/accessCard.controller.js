@@ -22,26 +22,22 @@ const scanCard = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
         // Décoder les données base64 du QR code
         const decodedData = atob(qrData);
         const parsed = JSON.parse(decodedData);
-        const { studentId, totalAmount, validFrom, validUntil, status } = parsed;
-        // Trouver l'étudiant avec ses paiements et cartes d'accès
+        const { studentId, amount, validFrom, validUntil, status } = parsed;
+        // Trouver l'étudiant avec ses paiements
         const student = yield db_1.default.student.findUnique({
             where: { id: studentId },
             include: {
                 payments: {
-                    where: { status: 'VALID' }
-                },
-                accessCards: {
-                    include: {
-                        payment: true
-                    },
-                    orderBy: { id: 'desc' } // Utilisez id pour le tri à la place de createdAt
+                    where: { status: 'VALID' },
+                    orderBy: { validUntil: 'desc' }
                 }
             },
         });
         if (!student) {
             return res.json({
                 success: false,
-                message: 'Étudiant non trouvé'
+                message: 'Étudiant non trouvé',
+                status: 'REFUSED'
             });
         }
         const now = new Date();
@@ -51,28 +47,40 @@ const scanCard = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
         if (now < validFromDate) {
             return res.json({
                 success: false,
-                message: `Accès non encore valide pour ${student.firstName} ${student.lastName}. Valide à partir du ${validFromDate.toLocaleDateString('fr-FR')}.`
+                message: `Accès non encore valide. Valide à partir du ${validFromDate.toLocaleDateString('fr-FR')}.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'REFUSED'
             });
         }
         if (now > validUntilDate) {
             return res.json({
                 success: false,
-                message: `Accès expiré pour ${student.firstName} ${student.lastName}. Valide jusqu'au ${validUntilDate.toLocaleDateString('fr-FR')}.`
+                message: `Accès expiré. Valide jusqu'au ${validUntilDate.toLocaleDateString('fr-FR')}.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'EXPIRED'
             });
         }
         // Vérification du statut
         if (status !== 'VALID') {
             return res.json({
                 success: false,
-                message: `Paiement non validé pour ${student.firstName} ${student.lastName}.`
+                message: `Paiement non validé.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'REFUSED'
             });
         }
         // Vérifier s'il y a au moins un paiement validé
-        const hasValidPayment = student.payments.some((payment) => payment.status === 'VALID');
+        const hasValidPayment = student.payments.length > 0;
         if (!hasValidPayment) {
             return res.json({
                 success: false,
-                message: `Aucun paiement validé pour ${student.firstName} ${student.lastName}.`
+                message: `Aucun paiement validé.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'REFUSED'
             });
         }
         // Vérification du nombre de scans aujourd'hui
@@ -80,12 +88,18 @@ const scanCard = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
         startOfDay.setHours(0, 0, 0, 0);
         const endOfDay = new Date(now);
         endOfDay.setHours(23, 59, 59, 999);
-        // Utiliser la dernière carte d'accès
-        const latestAccessCard = student.accessCards[0];
+        // Utiliser la dernière carte d'accès (tri par ID au lieu de createdAt)
+        const latestAccessCard = yield db_1.default.accessCard.findFirst({
+            where: { studentId: studentId },
+            orderBy: { id: 'desc' } // Changé de createdAt à id
+        });
         if (!latestAccessCard) {
             return res.json({
                 success: false,
-                message: `Aucune carte d'accès trouvée pour ${student.firstName} ${student.lastName}.`
+                message: `Aucune carte d'accès trouvée.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'REFUSED'
             });
         }
         const todayScans = yield db_1.default.scanLog.count({
@@ -97,7 +111,10 @@ const scanCard = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
         if (todayScans >= 1) {
             return res.json({
                 success: false,
-                message: `Accès déjà utilisé aujourd'hui pour ${student.firstName} ${student.lastName}.`
+                message: `Accès déjà utilisé aujourd'hui.`,
+                studentName: `${student.firstName} ${student.lastName}`,
+                institution: student.institution,
+                status: 'REFUSED'
             });
         }
         // Enregistrement du scan
@@ -109,12 +126,12 @@ const scanCard = (req, res, next) => __awaiter(void 0, void 0, void 0, function*
         });
         res.json({
             success: true,
-            message: `Accès autorisé pour ${student.firstName} ${student.lastName} avec un montant total de ${totalAmount} FCFA.`,
-            student: {
-                name: `${student.firstName} ${student.lastName}`,
-                institution: student.institution,
-                amount: totalAmount,
-            },
+            message: `Accès autorisé.`,
+            studentName: `${student.firstName} ${student.lastName}`,
+            institution: student.institution,
+            amount: amount,
+            validUntil: validUntil,
+            status: 'AUTHORIZED'
         });
     }
     catch (err) {
