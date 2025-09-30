@@ -5,12 +5,10 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - NODE_ENV=${NODE_ENV}
+      - DATABASE_URL=postgresql://postgres:root@195.26.241.68:5432/bovann
+      - JWT_SECRET=bovann_jwt_secret_2025
+      - NODE_ENV=production
     restart: unless-stopped
-    env_file:
-      - .env
 
   # FRONTEND
   frontend:
@@ -20,9 +18,7 @@ services:
     container_name: bovann-frontend
     restart: always
     environment:
-      - NODE_ENV=${NODE_ENV}
-      - PORT=${PORT}
-      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - NODE_ENV=production
+      - PORT=3009
+      - REACT_APP_API_URL=http://195.26.241.68:3000/api
       - BROWSER=none
-    env_file:
-      - .env
