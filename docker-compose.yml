@@ -20,5 +20,5 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3009
-      - REACT_APP_API_URL=http://localhost:3000/api
+      - REACT_APP_API_URL=http://195.26.241.68:3000/api
       - BROWSER=none
