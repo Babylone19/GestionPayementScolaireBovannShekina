@@ -1,10 +1,9 @@
 import axios from 'axios';
 import { ScanCardDto, ScanResult } from '../types/card';
-
-const API_URL = 'http://195.26.241.68:3000/api/cards';  // ← /api/cards
+import API_CONFIG from '../config/apiConfig';
 
 export const scanCard = async (token: string, qrData: string): Promise<ScanResult> => {
-  const response = await axios.post(`${API_URL}/scan`, { qrData }, {
+  const response = await axios.post(`${API_CONFIG.CARDS}/scan`, { qrData }, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

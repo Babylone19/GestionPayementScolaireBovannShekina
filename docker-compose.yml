@@ -1,21 +1,19 @@
 services:
   frontend:
-    build:
-      context: ./bovann-frontend
-      dockerfile: Dockerfile
+    build: ./bovann-frontend
+     
     ports:
       - "8081:80"
     container_name: bovann-frontend
-    restart: unless-stopped
+    restart: always
     environment:
       - NODE_ENV=production
       - REACT_APP_API_URL=http://195.26.241.68:3000/api  # Utilise l'IP publique
     network_mode: "host"
 
   backend:
-    build:
-      context: ./bovann-payment-platform
-      dockerfile: Dockerfile
+    build: ./bovann-payment-platform
+      
     ports:
       - "3000:3000"
     environment:

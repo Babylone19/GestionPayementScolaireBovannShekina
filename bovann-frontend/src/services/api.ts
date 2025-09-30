@@ -1,10 +1,8 @@
 import axios from "axios";
-
-// TOUJOURS utiliser localhost depuis le navigateur
-const BASE_URL = "http://195.26.241.68:3000/api";
+import API_CONFIG from "../config/apiConfig";  // ← Ajouter cette ligne
 
 const api = axios.create({
-  baseURL: BASE_URL,
+  baseURL: API_CONFIG.BASE_URL,  // ← Utiliser la config
   headers: {
     "Content-Type": "application/json",
   },

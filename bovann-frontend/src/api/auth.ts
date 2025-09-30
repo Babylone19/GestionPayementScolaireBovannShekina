@@ -1,10 +1,15 @@
 import axios from 'axios';
 import { LoginCredentials } from '../types/user';
+import API_CONFIG from '../config/apiConfig';  // ← Ajouter cette ligne
 
-// TOUJOURS utiliser localhost depuis le navigateur
-const API_BASE = 'http://195.26.241.68:3000/api/auth';
-// const API_BASE = 'http://localhost:3000/api/auth';
-export const login = async (credentials: LoginCredentials): Promise<{ token: string; user: { id: string; email: string; role: string } }> => {
-  const response = await axios.post(`${API_BASE}/login`, credentials);
+export const login = async (credentials: LoginCredentials): Promise<{ 
+  token: string; 
+  user: { 
+    id: string; 
+    email: string; 
+    role: string 
+  } 
+}> => {
+  const response = await axios.post(API_CONFIG.AUTH.LOGIN, credentials);  // ← Utiliser la config
   return response.data;
 };

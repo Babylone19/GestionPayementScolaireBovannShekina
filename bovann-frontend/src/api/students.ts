@@ -1,7 +1,6 @@
 import axios from 'axios';
 import { CreateStudentDto, Student } from '../types/student';
-
-const API_URL = 'http://195.26.241.68:3000/api/students';  // ← /api/students
+import API_CONFIG from '../config/apiConfig';
 
 interface ApiResponse {
   success: boolean;
@@ -10,7 +9,7 @@ interface ApiResponse {
 }
 
 export const createStudent = async (token: string, student: CreateStudentDto): Promise<Student> => {
-  const response = await axios.post(API_URL, student, {
+  const response = await axios.post(API_CONFIG.STUDENTS, student, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -23,7 +22,7 @@ export const createStudent = async (token: string, student: CreateStudentDto): P
 };
 
 export const getStudents = async (token: string): Promise<Student[]> => {
-  const response = await axios.get(API_URL, {
+  const response = await axios.get(API_CONFIG.STUDENTS, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

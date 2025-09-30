@@ -1,10 +1,9 @@
 import axios from 'axios';
 import { CreateUserDto, User } from '../types/user';
-
-const API_URL = 'http://195.26.241.68:3000/api/users';  // ← /api/users
+import API_CONFIG from '../config/apiConfig';
 
 export const createUser = async (token: string, user: CreateUserDto): Promise<User> => {
-  const response = await axios.post(API_URL, user, {
+  const response = await axios.post(API_CONFIG.USERS, user, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -13,7 +12,7 @@ export const createUser = async (token: string, user: CreateUserDto): Promise<Us
 };
 
 export const getUsers = async (token: string): Promise<User[]> => {
-  const response = await axios.get(API_URL, {
+  const response = await axios.get(API_CONFIG.USERS, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -22,7 +21,7 @@ export const getUsers = async (token: string): Promise<User[]> => {
 };
 
 export const getUserById = async (token: string, userId: string): Promise<User> => {
-  const response = await axios.get(`${API_URL}/${userId}`, {
+  const response = await axios.get(`${API_CONFIG.USERS}/${userId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -32,7 +31,7 @@ export const getUserById = async (token: string, userId: string): Promise<User> 
 
 export const updateUser = async (token: string, userId: string, role: string): Promise<User> => {
   const response = await axios.patch(
-    `${API_URL}/${userId}`,
+    `${API_CONFIG.USERS}/${userId}`,
     { role },
     {
       headers: {
@@ -44,7 +43,7 @@ export const updateUser = async (token: string, userId: string, role: string): P
 };
 
 export const deleteUser = async (token: string, userId: string): Promise<void> => {
-  await axios.delete(`${API_URL}/${userId}`, {
+  await axios.delete(`${API_CONFIG.USERS}/${userId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },

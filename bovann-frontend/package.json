@@ -9,7 +9,6 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.126",
     "@types/react": "^19.1.15",
     "@types/react-dom": "^19.1.9",
     "axios": "^1.12.2",
@@ -50,6 +49,7 @@
     ]
   },
   "devDependencies": {
+    "@types/node": "^24.6.0",
     "autoprefixer": "^10.4.21",
     "cross-env": "^10.0.0",
     "postcss": "^8.5.6",

@@ -4,7 +4,7 @@ import { getToken } from '../../utils/auth';
 import { Student } from '../../types/student';
 import { Payment, PaymentStatus, CreatePaymentDto } from '../../types/payment';
 import { useNavigate } from 'react-router-dom';
-
+import API_CONFIG from '../../config/apiConfig';
 const PaymentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -109,7 +109,7 @@ const PaymentManagement: React.FC = () => {
     setSelectedStudent(student);
     setShowStudentList(false);
     try {
-      const response = await fetch(`http://195.26.241.68:3000/api/payments?studentId=${student.id}`, {
+      const response = await fetch(`${API_CONFIG.PAYMENTS}?studentId=${student.id}`, {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
@@ -184,7 +184,7 @@ const PaymentManagement: React.FC = () => {
     };
 
     try {
-      const response = await fetch('http://195.26.241.68:3000/api/payments', {
+      const response = await fetch(API_CONFIG.PAYMENTS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -247,7 +247,7 @@ const PaymentManagement: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch(`http://195.26.241.68:3000/api/payments/${paymentId}/status`, {
+      const response = await fetch(`${API_CONFIG.PAYMENTS}/${paymentId}/status`,{
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
