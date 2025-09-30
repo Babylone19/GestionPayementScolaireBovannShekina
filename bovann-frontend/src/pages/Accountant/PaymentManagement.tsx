@@ -5,6 +5,7 @@ import { Student } from '../../types/student';
 import { Payment, PaymentStatus, CreatePaymentDto } from '../../types/payment';
 import { useNavigate } from 'react-router-dom';
 import API_CONFIG from '../../config/apiConfig';
+
 const PaymentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
@@ -23,17 +24,13 @@ const PaymentManagement: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   
-  // États pour le filtrage et recherche
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedInstitution, setSelectedInstitution] = useState<string>('all');
   const [showStudentList, setShowStudentList] = useState<boolean>(true);
-  
-  // États pour la confirmation
   const [showConfirmation, setShowConfirmation] = useState<boolean>(false);
   
   const navigate = useNavigate();
 
-  // Générer une référence unique
   const generateReference = () => {
     return `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
@@ -55,11 +52,11 @@ const PaymentManagement: React.FC = () => {
         setStudents(studentsList);
         setFilteredStudents(studentsList);
       } catch (err) {
-        console.error("Erreur détaillée:", err);
+        console.error("Erreur detaillee:", err);
         if (err instanceof Error) {
-          setError(`Erreur lors de la récupération des étudiants: ${err.message}`);
+          setError(`Erreur lors de la recuperation des etudiants: ${err.message}`);
         } else {
-          setError('Erreur lors de la récupération des étudiants.');
+          setError('Erreur lors de la recuperation des etudiants.');
         }
       } finally {
         setLoading(false);
@@ -68,7 +65,6 @@ const PaymentManagement: React.FC = () => {
     fetchStudents();
   }, [navigate]);
 
-  // Obtenir la liste des institutions uniques (version corrigée)
   const getUniqueInstitutions = (): string[] => {
     const institutionsSet = new Set<string>();
     students.forEach(student => {
@@ -79,16 +75,13 @@ const PaymentManagement: React.FC = () => {
 
   const institutions = getUniqueInstitutions();
 
-  // Filtrer les étudiants en fonction des critères
   useEffect(() => {
     let filtered = students;
 
-    // Filtre par institution
     if (selectedInstitution !== 'all') {
       filtered = filtered.filter(student => student.institution === selectedInstitution);
     }
 
-    // Filtre par recherche textuelle
     if (searchTerm) {
       filtered = filtered.filter(student =>
         `${student.lastName} ${student.firstName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -106,6 +99,10 @@ const PaymentManagement: React.FC = () => {
       navigate("/");
       return;
     }
+    
+    console.log("Etudiant selectionne:", student);
+    console.log("ID etudiant:", student.id);
+
     setSelectedStudent(student);
     setShowStudentList(false);
     try {
@@ -125,26 +122,31 @@ const PaymentManagement: React.FC = () => {
       if (data.success && data.payments) {
         setPayments(data.payments);
       } else {
-        setError('Erreur lors de la récupération des paiements.');
+        setError('Erreur lors de la recuperation des paiements.');
       }
     } catch (err) {
-      console.error("Erreur détaillée:", err);
+      console.error("Erreur detaillee:", err);
       if (err instanceof Error) {
-        setError(`Erreur lors de la récupération des paiements: ${err.message}`);
+        setError(`Erreur lors de la recuperation des paiements: ${err.message}`);
       } else {
-        setError('Erreur lors de la récupération des paiements.');
+        setError('Erreur lors de la recuperation des paiements.');
       }
     }
   };
 
   const validatePayment = () => {
     if (amount <= 0) {
-      setError('Le montant doit être supérieur à 0');
+      setError('Le montant doit etre superieur a 0');
       return false;
     }
 
     if (!selectedStudent) {
-      setError('Aucun étudiant sélectionné');
+      setError('Aucun etudiant selectionne');
+      return false;
+    }
+
+    if (!selectedStudent.id) {
+      setError('ID etudiant invalide');
       return false;
     }
 
@@ -157,7 +159,6 @@ const PaymentManagement: React.FC = () => {
 
     if (!validatePayment()) return;
 
-    // Afficher la confirmation au lieu d'ajouter directement
     setShowConfirmation(true);
   };
 
@@ -167,21 +168,30 @@ const PaymentManagement: React.FC = () => {
       navigate("/");
       return;
     }
-    if (!selectedStudent) return;
+    
+    if (!selectedStudent || !selectedStudent.id) {
+      setError("Aucun etudiant selectionne ou ID etudiant manquant");
+      return;
+    }
 
     setLoading(true);
     setError(null);
     setShowConfirmation(false);
 
-    const paymentData: CreatePaymentDto = {
+    // CORRECTION : Conversion des dates en objets Date
+    const paymentData = {
       studentId: selectedStudent.id,
       amount: amount,
       currency,
       reference,
       details: details || `Paiement pour ${selectedStudent.firstName} ${selectedStudent.lastName}`,
-      validFrom,
-      validUntil,
+      validFrom: new Date(validFrom), // Conversion en Date
+      validUntil: new Date(validUntil), // Conversion en Date
     };
+
+    console.log("Donnees de paiement envoyees:", paymentData);
+    console.log("Type de validFrom:", typeof paymentData.validFrom);
+    console.log("Type de validUntil:", typeof paymentData.validUntil);
 
     try {
       const response = await fetch(API_CONFIG.PAYMENTS, {
@@ -193,12 +203,24 @@ const PaymentManagement: React.FC = () => {
         body: JSON.stringify(paymentData),
       });
 
+      console.log("Reponse status:", response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Erreur reponse texte:", errorText);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorText;
+        } catch {
+          errorMessage = errorText || `HTTP error! status: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
+      console.log("Donnees reponse:", data);
+      
       if (data.success) {
         const newPayment = {
           ...data.payment,
@@ -213,7 +235,7 @@ const PaymentManagement: React.FC = () => {
           setQrCodeUrl(data.accessCard.qrData);
         }
 
-        setSuccess(`Paiement de ${amount.toLocaleString()} ${currency} enregistré avec succès !`);
+        setSuccess(`Paiement de ${amount.toLocaleString()} ${currency} enregistre avec succes !`);
         setAmount(0);
         setDetails('');
         setReference(generateReference());
@@ -221,7 +243,7 @@ const PaymentManagement: React.FC = () => {
         throw new Error(data.message || 'Erreur lors de l\'enregistrement du paiement.');
       }
     } catch (err) {
-      console.error("Erreur détaillée:", err);
+      console.error("Erreur complete:", err);
       if (err instanceof Error) {
         setError(`Erreur lors de l'enregistrement du paiement: ${err.message}`);
       } else {
@@ -258,8 +280,8 @@ const PaymentManagement: React.FC = () => {
 
       if (response.status === 500) {
         const errorText = await response.text();
-        console.error("Erreur serveur détaillée:", errorText);
-        throw new Error('Erreur interne du serveur. Veuillez réessayer plus tard.');
+        console.error("Erreur serveur detaillee:", errorText);
+        throw new Error('Erreur interne du serveur. Veuillez reessayer plus tard.');
       }
 
       if (!response.ok) {
@@ -273,16 +295,16 @@ const PaymentManagement: React.FC = () => {
           payment.id === paymentId ? { ...payment, status: data.payment.status } : payment
         );
         setPayments(updatedPayments);
-        setSuccess(`Paiement mis à jour avec succès ! Nouveau statut: ${getStatusText(data.payment.status)}`);
+        setSuccess(`Paiement mis a jour avec succes ! Nouveau statut: ${getStatusText(data.payment.status)}`);
       } else {
-        throw new Error(data.message || 'Erreur lors de la mise à jour du statut du paiement.');
+        throw new Error(data.message || 'Erreur lors de la mise a jour du statut du paiement.');
       }
     } catch (err) {
-      console.error("Erreur détaillée:", err);
+      console.error("Erreur detaillee:", err);
       if (err instanceof Error) {
-        setError(`Erreur lors de la mise à jour du statut du paiement: ${err.message}`);
+        setError(`Erreur lors de la mise a jour du statut du paiement: ${err.message}`);
       } else {
-        setError('Erreur lors de la mise à jour du statut du paiement.');
+        setError('Erreur lors de la mise a jour du statut du paiement.');
       }
     } finally {
       setLoading(false);
@@ -335,17 +357,16 @@ const PaymentManagement: React.FC = () => {
   const getStatusText = (status: PaymentStatus): string => {
     switch (status) {
       case 'VALID':
-        return 'Validé';
+        return 'Valide';
       case 'PENDING':
         return 'En attente';
       case 'EXPIRED':
-        return 'Expiré';
+        return 'Expire';
       default:
         return status;
     }
   };
 
-  // Calcul du montant total validé
   const totalValidAmount = payments
     .filter(payment => payment.status === 'VALID')
     .reduce((sum, payment) => sum + payment.amount, 0);
@@ -360,7 +381,6 @@ const PaymentManagement: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-accent flex flex-col p-6">
-      {/* Header avec bouton retour */}
       <header className="bg-red-600 shadow-md p-4 flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
           <button
@@ -373,7 +393,6 @@ const PaymentManagement: React.FC = () => {
         </div>
       </header>
 
-      {/* Messages d'alerte */}
       {error && (
         <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
           {error}
@@ -397,16 +416,13 @@ const PaymentManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Content */}
       <main className="flex-1">
         {showStudentList ? (
           <>
-            {/* Section Filtres et Recherche */}
             <div className="bg-white p-6 rounded-lg shadow-md mb-6">
-              <h2 className="text-xl font-semibold mb-4">Rechercher et Filtrer les Étudiants</h2>
+              <h2 className="text-xl font-semibold mb-4">Rechercher et Filtrer les Etudiants</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {/* Filtre par institution */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Filtrer par Institution
@@ -424,14 +440,13 @@ const PaymentManagement: React.FC = () => {
                   </select>
                 </div>
 
-                {/* Recherche globale */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Recherche (Nom, Institution, Email)
                   </label>
                   <input
                     type="text"
-                    placeholder="Rechercher un étudiant..."
+                    placeholder="Rechercher un etudiant..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
@@ -439,10 +454,9 @@ const PaymentManagement: React.FC = () => {
                 </div>
               </div>
 
-              {/* Statistiques des filtres */}
               <div className="flex justify-between items-center text-sm text-gray-600">
                 <span>
-                  {filteredStudents.length} étudiant(s) trouvé(s)
+                  {filteredStudents.length} etudiant(s) trouve(s)
                   {selectedInstitution !== 'all' && ` dans ${selectedInstitution}`}
                   {searchTerm && ` pour "${searchTerm}"`}
                 </span>
@@ -454,16 +468,15 @@ const PaymentManagement: React.FC = () => {
                     }}
                     className="text-red-600 hover:text-red-800 font-medium"
                   >
-                    Réinitialiser les filtres
+                    Reinitialiser les filtres
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Liste des étudiants filtrés */}
             <div className="bg-white p-6 rounded-lg shadow-md">
               <h3 className="text-lg font-semibold mb-4">
-                Liste des Étudiants {selectedInstitution !== 'all' ? `- ${selectedInstitution}` : ''}
+                Liste des Etudiants {selectedInstitution !== 'all' ? `- ${selectedInstitution}` : ''}
               </h3>
 
               {filteredStudents.length > 0 ? (
@@ -486,7 +499,7 @@ const PaymentManagement: React.FC = () => {
                         </p>
                       )}
                       <div className="mt-2 text-xs text-gray-400">
-                        Cliquer pour gérer les paiements
+                        Cliquer pour gerer les paiements
                       </div>
                     </div>
                   ))}
@@ -494,7 +507,7 @@ const PaymentManagement: React.FC = () => {
               ) : (
                 <div className="text-center py-8">
                   <p className="text-gray-500 text-lg">
-                    Aucun étudiant trouvé avec les critères actuels.
+                    Aucun etudiant trouve avec les criteres actuels.
                   </p>
                   {(selectedInstitution !== 'all' || searchTerm) && (
                     <button
@@ -504,7 +517,7 @@ const PaymentManagement: React.FC = () => {
                       }}
                       className="mt-2 text-red-600 hover:text-red-800 font-medium"
                     >
-                      Réinitialiser les filtres
+                      Reinitialiser les filtres
                     </button>
                   )}
                 </div>
@@ -519,28 +532,27 @@ const PaymentManagement: React.FC = () => {
                   onClick={handleBackToStudentList}
                   className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
                 >
-                  ← Retour à la liste
+                  ← Retour a la liste
                 </button>
                 <h3 className="text-xl font-semibold">Paiements pour {selectedStudent.lastName} {selectedStudent.firstName}</h3>
-                <div></div> {/* Pour l'alignement */}
+                <div></div>
               </div>
 
               <div className="bg-blue-50 p-4 rounded-lg mb-6 border border-blue-200">
-                <h4 className="font-semibold text-blue-800 mb-2">Résumé des paiements</h4>
+                <h4 className="font-semibold text-blue-800 mb-2">Resume des paiements</h4>
                 <p className="text-blue-700">
-                  <strong>Montant total validé:</strong> {totalValidAmount.toLocaleString()} {currency}
+                  <strong>Montant total valide:</strong> {totalValidAmount.toLocaleString()} {currency}
                 </p>
                 <p className="text-blue-700">
                   <strong>Institution:</strong> {selectedStudent.institution}
                 </p>
               </div>
 
-              {/* Formulaire de création de paiement */}
               <div className="space-y-4 mb-6 bg-white p-4 rounded-lg shadow border border-gray-200">
                 <h4 className="font-semibold">Nouveau Paiement</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Montant à ajouter ({currency})</label>
+                    <label className="block text-sm font-medium text-gray-700">Montant a ajouter ({currency})</label>
                     <input
                       type="number"
                       value={amount}
@@ -549,7 +561,7 @@ const PaymentManagement: React.FC = () => {
                       min="0"
                     />
                     <p className="text-sm text-gray-500 mt-1">
-                      Montant total après ajout: <strong>{(totalValidAmount + amount).toLocaleString()} {currency}</strong>
+                      Montant total apres ajout: <strong>{(totalValidAmount + amount).toLocaleString()} {currency}</strong>
                     </p>
                   </div>
                   <div>
@@ -565,7 +577,7 @@ const PaymentManagement: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Référence</label>
+                    <label className="block text-sm font-medium text-gray-700">Reference</label>
                     <input
                       type="text"
                       value={reference}
@@ -574,17 +586,17 @@ const PaymentManagement: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Détails</label>
+                    <label className="block text-sm font-medium text-gray-700">Details</label>
                     <input
                       type="text"
                       value={details}
                       onChange={(e) => setDetails(e.target.value)}
-                      placeholder="Détails du paiement"
+                      placeholder="Details du paiement"
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Valide à partir de</label>
+                    <label className="block text-sm font-medium text-gray-700">Valide a partir de</label>
                     <input
                       type="date"
                       value={validFrom}
@@ -593,7 +605,7 @@ const PaymentManagement: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Valide jusqu'à</label>
+                    <label className="block text-sm font-medium text-gray-700">Valide jusqu'a</label>
                     <input
                       type="date"
                       value={validUntil}
@@ -611,13 +623,12 @@ const PaymentManagement: React.FC = () => {
                 </button>
               </div>
 
-              {/* QR Code */}
               {qrCodeUrl && (
                 <div className="mt-6 bg-white p-4 rounded-lg shadow border border-gray-200">
-                  <h4 className="font-semibold mb-2">QR Code d'Accès</h4>
+                  <h4 className="font-semibold mb-2">QR Code d'Acces</h4>
                   <p className="text-sm text-gray-600 mb-4">
-                    Ce QR code contient les informations cumulées de tous les paiements validés.
-                    Il sera scanné pour vérifier l'accès de l'étudiant.
+                    Ce QR code contient les informations cumulees de tous les paiements valides.
+                    Il sera scanne pour verifier l'acces de l'etudiant.
                   </p>
                   <img src={qrCodeUrl} alt="QR Code" className="w-48 border border-gray-300 mx-auto" />
                   <div className="mt-4 text-center">
@@ -625,13 +636,12 @@ const PaymentManagement: React.FC = () => {
                       onClick={downloadQrCode}
                       className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
                     >
-                      Télécharger le QR Code
+                      Telecharger le QR Code
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Historique des paiements */}
               <h4 className="font-semibold mt-6 mb-2">Historique des Paiements</h4>
               {payments.length > 0 ? (
                 <div className="space-y-2">
@@ -683,14 +693,13 @@ const PaymentManagement: React.FC = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-600">Aucun paiement trouvé pour cet étudiant.</p>
+                <p className="text-gray-600">Aucun paiement trouve pour cet etudiant.</p>
               )}
             </div>
           )
         )}
       </main>
 
-      {/* Modal de confirmation pour l'ajout de paiement */}
       {showConfirmation && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
@@ -698,14 +707,14 @@ const PaymentManagement: React.FC = () => {
               Confirmer l'ajout du paiement
             </h3>
             <p className="text-gray-600 mb-4">
-              Êtes-vous sûr de vouloir ajouter un paiement de{' '}
-              <strong>{amount.toLocaleString()} {currency}</strong> pour{' '}
+              Etes-vous sur de vouloir ajouter un paiement de{' '}
+              <strong>{amount.toLocaleString()} ${currency}</strong> pour{' '}
               <strong>{selectedStudent?.firstName} {selectedStudent?.lastName}</strong> ?
             </p>
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-yellow-800">
-                <strong>Montant total après cet ajout :</strong>{' '}
-                {(totalValidAmount + amount).toLocaleString()} {currency}
+                <strong>Montant total apres cet ajout :</strong>{' '}
+                {(totalValidAmount + amount).toLocaleString()} ${currency}
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-3 justify-end">
