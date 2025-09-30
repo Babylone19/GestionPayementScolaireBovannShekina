@@ -4,6 +4,7 @@ services:
     build: ./bovann-payment-platform
     ports:
       - "3000:3000"
+    network_mode : "host"
     environment:
       - DATABASE_URL=postgresql://postgres:root@195.26.241.68:5432/bovann
       - JWT_SECRET=bovann_jwt_secret_2025
@@ -15,6 +16,7 @@ services:
     build: ./bovann-frontend
     ports:
       - "3009:3009"
+    network_mode : "host"
     container_name: bovann-frontend
     restart: always
     environment:
