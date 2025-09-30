@@ -1,19 +1,19 @@
 services:
   frontend:
     build: ./bovann-frontend
-     
     ports:
-      - "8081:80"
+      - "3009:3009"  # Port React simplifié
     container_name: bovann-frontend
     restart: always
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=http://195.26.241.68:3000/api  # Utilise l'IP publique
+      - PORT=3009
+      - REACT_APP_API_URL=http://195.26.241.68:3000/api
+      - BROWSER=none  # Évite l'ouverture automatique du navigateur
     network_mode: "host"
 
   backend:
     build: ./bovann-payment-platform
-      
     ports:
       - "3000:3000"
     environment:

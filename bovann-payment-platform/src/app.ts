@@ -16,8 +16,8 @@ const app = express();
 app.use(helmet());
 app.use(cors({
   origin: [
-    'http://localhost:8081',
-    'http://195.26.241.68:8081',
+    'http://localhost:3009',        // Nouveau port React
+    'http://195.26.241.68:3009',    // Frontend en production
     'http://localhost:3000',
     'http://195.26.241.68:3000'
   ],
