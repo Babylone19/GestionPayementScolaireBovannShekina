@@ -1,8 +1,6 @@
 generator client {
   provider = "prisma-client-js"
 }
-
-// ⚡ CHANGEMENT ICI - MongoDB → PostgreSQL
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")

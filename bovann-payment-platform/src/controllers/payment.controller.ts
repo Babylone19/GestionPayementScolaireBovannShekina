@@ -23,19 +23,27 @@ export const createPayment = async (req: Request, res: Response, next: NextFunct
       },
     });
 
-    const serverUrl = process.env.SERVER_URL || 'http://localhost:3000';
-    const verificationUrl = `${serverUrl}/api/public/verify-public?studentId=${student.id}`;
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        studentId: studentId,
+        status: 'VALID'
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
 
-    const qrData = `
-ETUDIANT: ${student.firstName} ${student.lastName}
-INSTITUTION: ${student.institution}
-MONTANT: ${amount} ${currency}
-VALIDE DU: ${new Date(validFrom).toLocaleDateString('fr-FR')}
-VALIDE JUSQU AU: ${new Date(validUntil).toLocaleDateString('fr-FR')}
-STATUT: VALIDE
+    const totalAmount = allPayments.reduce((sum, p) => sum + p.amount, 0);
 
-URL DE VERIFICATION: ${verificationUrl}
-`;
+    // CORRECTION : Backend sur le port 3000
+    const backendUrl = process.env.SERVER_URL || `http://${req.headers.host}`;
+    const verificationUrl = `${backendUrl}/api/public/verify-public?studentId=${student.id}`;
+
+    const qrData = verificationUrl;
+
+    // console.log('URL historique générée:', historyUrl);
+
+    // const qrData = historyUrl;
 
     const qrImage = await generateQR(qrData);
 
@@ -49,7 +57,6 @@ URL DE VERIFICATION: ${verificationUrl}
         where: { id: existingAccessCard.id },
         data: {
           qrData: qrImage,
-          paymentId: payment.id,
         },
       });
     } else {
@@ -68,6 +75,11 @@ URL DE VERIFICATION: ${verificationUrl}
       accessCard: {
         ...accessCard,
         qrData: qrImage
+      },
+      summary: {
+        totalPayments: allPayments.length,
+        totalAmount: totalAmount,
+        verificationUrl: verificationUrl
       }
     });
   } catch (err) {

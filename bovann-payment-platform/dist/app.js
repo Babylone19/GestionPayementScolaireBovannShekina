@@ -17,7 +17,18 @@ const cardVerification_routes_1 = __importDefault(require("./routes/cardVerifica
 const errorHandler_1 = require("./middlewares/errorHandler");
 const app = (0, express_1.default)();
 app.use((0, helmet_1.default)());
-app.use((0, cors_1.default)());
+app.use((0, cors_1.default)({
+    origin: [
+        'http://localhost:3009', // Nouveau port React
+        'http://195.26.241.68:3009', // Frontend en production
+        'http://localhost:3000',
+        'http://localhost:8081',
+        'http://195.26.241.68:3000'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use((0, morgan_1.default)('combined'));
 app.use(express_1.default.json({ limit: '10mb' }));
 app.use('/api/auth', auth_routes_1.default);

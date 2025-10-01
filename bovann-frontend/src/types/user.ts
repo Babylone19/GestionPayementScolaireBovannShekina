@@ -4,6 +4,8 @@ export interface User {
   id: string;
   email: string;
   role: UserRole;
+  createdAt?: string; // Ajoutez cette ligne
+  updatedAt?: string; // Optionnel: si vous voulez aussi la date de mise à jour
 }
 
 export interface LoginCredentials {

@@ -24,30 +24,29 @@ const createPayment = (req, res, next) => __awaiter(void 0, void 0, void 0, func
         });
         if (!student)
             return next(new ApiError_1.ApiError(404, 'Student not found'));
-        // Créer le paiement directement en statut VALID
         const payment = yield db_1.default.payment.create({
             data: {
                 amount: amount,
                 validFrom: new Date(validFrom),
                 validUntil: new Date(validUntil),
-                status: 'VALID', // Directement validé
+                status: 'VALID',
                 studentId: studentId,
             },
         });
-        // Générer les données pour le QR code
-        // Générer du texte clair pour le QR code
-        const qrData = `
-ÉTUDIANT: ${student.firstName} ${student.lastName}
-INSTITUTION: ${student.institution}
-MONTANT: ${amount} ${currency}
-VALIDE DU: ${new Date(validFrom).toLocaleDateString('fr-FR')}
-VALIDE JUSQU'AU: ${new Date(validUntil).toLocaleDateString('fr-FR')}
-STATUT: VALIDE
-
-URL DE VÉRIFICATION: http://localhost:3000/api/public/verify-public?studentId=${student.id}
-`;
+        const allPayments = yield db_1.default.payment.findMany({
+            where: {
+                studentId: studentId,
+                status: 'VALID'
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+        const totalAmount = allPayments.reduce((sum, p) => sum + p.amount, 0);
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3009';
+        const historyUrl = `${frontendUrl}/student-history/${student.id}`;
+        const qrData = historyUrl;
         const qrImage = yield (0, qrGenerator_1.generateQR)(qrData);
-        // Vérifier si une carte existe déjà
         const existingAccessCard = yield db_1.default.accessCard.findFirst({
             where: { studentId: studentId }
         });
@@ -57,7 +56,6 @@ URL DE VÉRIFICATION: http://localhost:3000/api/public/verify-public?studentId=$
                 where: { id: existingAccessCard.id },
                 data: {
                     qrData: qrImage,
-                    paymentId: payment.id,
                 },
             });
         }
@@ -73,16 +71,20 @@ URL DE VÉRIFICATION: http://localhost:3000/api/public/verify-public?studentId=$
         res.status(201).json({
             success: true,
             payment,
-            accessCard: Object.assign(Object.assign({}, accessCard), { qrData: qrImage })
+            accessCard: Object.assign(Object.assign({}, accessCard), { qrData: qrImage }),
+            summary: {
+                totalPayments: allPayments.length,
+                totalAmount: totalAmount,
+                historyUrl: historyUrl
+            }
         });
     }
     catch (err) {
-        console.error('Erreur création paiement:', err);
+        console.error('Erreur creation paiement:', err);
         next(new ApiError_1.ApiError(500, 'Failed to create payment and card'));
     }
 });
 exports.createPayment = createPayment;
-// AJOUTEZ CES FONCTIONS MANQUANTES
 const getPaymentsByStudent = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { studentId } = req.query;
     if (!studentId) {
@@ -100,7 +102,7 @@ const getPaymentsByStudent = (req, res, next) => __awaiter(void 0, void 0, void 
         res.json({ success: true, payments });
     }
     catch (err) {
-        console.error('Erreur récupération paiements:', err);
+        console.error('Erreur recuperation paiements:', err);
         next(new ApiError_1.ApiError(500, 'Failed to fetch payments'));
     }
 });
@@ -108,7 +110,6 @@ exports.getPaymentsByStudent = getPaymentsByStudent;
 const updatePaymentStatus = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     const { paymentId } = req.params;
     const { status } = req.body;
-    // Validation du statut
     const validStatuses = ['PENDING', 'VALID', 'EXPIRED'];
     if (!validStatuses.includes(status)) {
         return next(new ApiError_1.ApiError(400, `Invalid status value. Must be one of: ${validStatuses.join(', ')}`));
@@ -121,7 +122,7 @@ const updatePaymentStatus = (req, res, next) => __awaiter(void 0, void 0, void 0
         res.json({ success: true, payment });
     }
     catch (err) {
-        console.error('Erreur mise à jour statut:', err);
+        console.error('Erreur mise a jour statut:', err);
         if (err.code === 'P2025') {
             return next(new ApiError_1.ApiError(404, 'Payment not found'));
         }
