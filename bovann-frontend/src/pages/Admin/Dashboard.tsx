@@ -30,8 +30,10 @@ const AdminDashboard: React.FC = () => {
           getStudents(token)
         ]);
         
+        const studentsArray = Array.isArray(studentsData) ? studentsData : [];
+        
         setUsers(usersData);
-        setStudents(studentsData);
+        setStudents(studentsArray);
       } catch (error) {
         console.error("Erreur lors de la récupération des données:", error);
         setError("Erreur lors de la récupération des données");
@@ -42,7 +44,6 @@ const AdminDashboard: React.FC = () => {
     fetchData();
   }, [navigate]);
 
-  // Statistiques des utilisateurs par rôle
   const userStats = users.reduce((acc, user) => {
     if (!acc[user.role]) {
       acc[user.role] = 0;
@@ -51,17 +52,15 @@ const AdminDashboard: React.FC = () => {
     return acc;
   }, {} as Record<string, number>);
 
-  // Statistiques des étudiants par institution
   const institutionStats = students.reduce((acc, student) => {
-    const institution = student.institution || 'Non spécifiée';
-    if (!acc[institution]) {
-      acc[institution] = 0;
+    const institutionName = student.institution || 'Non spécifiée';
+    if (!acc[institutionName]) {
+      acc[institutionName] = 0;
     }
-    acc[institution]++;
+    acc[institutionName]++;
     return acc;
   }, {} as Record<string, number>);
 
-  // Obtenir le libellé du rôle
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
       'ADMIN': 'Administrateurs',
@@ -72,7 +71,6 @@ const AdminDashboard: React.FC = () => {
     return roles[role] || role;
   };
 
-  // Obtenir l'icône et la couleur pour chaque rôle
   const getRoleConfig = (role: string) => {
     const config: Record<string, { icon: React.ReactNode; color: string; bgColor: string }> = {
       'ADMIN': {
@@ -126,16 +124,13 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header pour mobile */}
       <div className="bg-white shadow-sm border-b lg:hidden">
         <div className="px-4 py-3">
           <h1 className="text-lg font-semibold text-gray-800">Tableau de bord Admin</h1>
         </div>
       </div>
 
-      {/* Content */}
       <div className="p-4 lg:p-6">
-        {/* Cartes statistiques principales */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
           <div className="bg-white rounded-xl shadow-sm border p-4 lg:p-6 flex items-center">
             <div className="p-3 rounded-lg bg-blue-50 mr-4">
@@ -179,7 +174,6 @@ const AdminDashboard: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-6 lg:mb-8">
-          {/* Statistiques par rôle */}
           <div className="bg-white rounded-xl shadow-sm border p-4 lg:p-6">
             <h2 className="text-lg lg:text-xl font-bold text-gray-800 mb-4 flex items-center">
               <FaUsers className="mr-2 text-blue-500" />
@@ -205,7 +199,6 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Statistiques par institution */}
           <div className="bg-white rounded-xl shadow-sm border p-4 lg:p-6">
             <h2 className="text-lg lg:text-xl font-bold text-gray-800 mb-4 flex items-center">
               <FaUniversity className="mr-2 text-purple-500" />
@@ -228,7 +221,6 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Actions rapides */}
         <div className="bg-white rounded-xl shadow-sm border p-4 lg:p-6 mb-6 lg:mb-8">
           <h2 className="text-lg lg:text-xl font-bold text-gray-800 mb-4">Actions rapides</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -255,42 +247,6 @@ const AdminDashboard: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Liste des utilisateurs récents */}
-        {/* <div className="bg-white rounded-xl shadow-sm border p-4 lg:p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-            <h2 className="text-lg lg:text-xl font-bold text-gray-800">
-              Utilisateurs récents ({users.slice(0, 8).length})
-            </h2>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                Total: {users.length}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {users.slice(0, 8).length > 0 ? (
-              users.slice(0, 8).map((user) => <UserCard key={user.id} user={user} />)
-            ) : (
-              <div className="col-span-full text-center py-8">
-                <FaUsers className="text-4xl text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-lg">Aucun utilisateur trouvé</p>
-              </div>
-            )}
-          </div>
-
-          {users.length > 8 && (
-            <div className="text-center mt-6">
-              <button
-                onClick={() => navigate("/admin/user-management")}
-                className="text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Voir tous les utilisateurs ({users.length})
-              </button>
-            </div>
-          )}
-        </div> */}
       </div>
     </div>
   );

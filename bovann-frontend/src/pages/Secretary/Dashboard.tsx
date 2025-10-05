@@ -5,6 +5,7 @@ import { getStudents } from "../../api/students";
 import { Student } from "../../types/student";
 import StudentCard from "../../components/StudentCard";
 import { FaSignOutAlt, FaUserGraduate, FaUniversity, FaSearch, FaFilter } from "react-icons/fa";
+import { getInstitutionName } from "../../utils/helpers"; // IMPORT AJOUTÉ
 
 const SecretaryDashboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -37,33 +38,41 @@ const SecretaryDashboard: React.FC = () => {
     fetchStudents();
   }, [navigate]);
 
-  // Obtenir la liste des institutions uniques
+  // CORRECTION : Obtenir la liste des institutions uniques
   const getUniqueInstitutions = (): string[] => {
     const institutionsSet = new Set<string>();
     students.forEach(student => {
-      institutionsSet.add(student.institution);
+      // UTILISER getInstitutionName pour toujours avoir une string
+      const institutionName = getInstitutionName(student.institution);
+      institutionsSet.add(institutionName);
     });
     return ['all', ...Array.from(institutionsSet)];
   };
 
   const institutions = getUniqueInstitutions();
 
-  // Filtrer les étudiants en fonction des critères
+  // CORRECTION : Filtrer les étudiants en fonction des critères
   useEffect(() => {
     let filtered = students;
 
     // Filtre par institution
     if (selectedInstitution !== 'all') {
-      filtered = filtered.filter(student => student.institution === selectedInstitution);
+      filtered = filtered.filter(student => {
+        const studentInstitution = getInstitutionName(student.institution);
+        return studentInstitution === selectedInstitution;
+      });
     }
 
     // Filtre par recherche textuelle
     if (searchTerm) {
-      filtered = filtered.filter(student =>
-        `${student.lastName} ${student.firstName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.institution.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()))
-      );
+      filtered = filtered.filter(student => {
+        const studentInstitution = getInstitutionName(student.institution);
+        return (
+          `${student.lastName} ${student.firstName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          studentInstitution.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+      });
     }
 
     setFilteredStudents(filtered);
@@ -74,9 +83,9 @@ const SecretaryDashboard: React.FC = () => {
     navigate("/");
   };
 
-  // Statistiques par institution (pour les données filtrées)
+  // CORRECTION : Statistiques par institution
   const institutionStats = filteredStudents.reduce((acc, student) => {
-    const institution = student.institution || 'Non spécifiée';
+    const institution = getInstitutionName(student.institution) || 'Non spécifiée';
     if (!acc[institution]) {
       acc[institution] = { count: 0 };
     }
@@ -107,12 +116,12 @@ const SecretaryDashboard: React.FC = () => {
         <h1 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">
           Tableau de bord Secrétaire
         </h1>
-        <button
+        {/* <button
           onClick={handleLogout}
           className="flex items-center bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition w-full sm:w-auto justify-center"
         >
           <FaSignOutAlt className="mr-2" /> Déconnexion
-        </button>
+        </button> */}
       </header>
 
       {/* Content */}
@@ -234,7 +243,7 @@ const SecretaryDashboard: React.FC = () => {
         {/* Bouton d'action */}
         <div className="flex justify-center sm:justify-end mb-6">
           <button
-            onClick={() => navigate("/secretary/student-management")}
+            onClick={() => navigate("/secretary/student-registration")}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-700 transition flex items-center justify-center w-full sm:w-auto"
           >
             <FaUserGraduate className="mr-2" />

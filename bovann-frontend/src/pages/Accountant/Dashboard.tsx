@@ -7,6 +7,7 @@ import { Student } from "../../types/student";
 import { Payment } from "../../types/payment";
 import StudentCard from "../../components/StudentCard";
 import { FaSignOutAlt, FaMoneyBillWave, FaUserGraduate, FaUniversity } from "react-icons/fa";
+import { extractStudentsFromResponse, extractPaymentsFromResponse, getInstitutionName } from "../../utils/helpers";
 
 const AccountantDashboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -25,17 +26,18 @@ const AccountantDashboard: React.FC = () => {
         }
         setLoading(true);
         
-        // Récupérer seulement les étudiants d'abord
-        const studentsData = await getStudents(token);
+        // Récupérer les étudiants
+        const studentsResponse = await getStudents(token);
+        const studentsData = extractStudentsFromResponse(studentsResponse);
         setStudents(studentsData);
         
-        // Ensuite récupérer les paiements si besoin
+        // Récupérer les paiements
         try {
-          const paymentsData = await getPayments(token);
+          const paymentsResponse = await getPayments(token);
+          const paymentsData = extractPaymentsFromResponse(paymentsResponse);
           setPayments(paymentsData);
         } catch (paymentError) {
           console.warn("Erreur lors de la récupération des paiements:", paymentError);
-          // On continue même si les paiements échouent
         }
         
       } catch (error) {
@@ -55,115 +57,188 @@ const AccountantDashboard: React.FC = () => {
 
   // Statistiques par institution
   const institutionStats = students.reduce((acc, student) => {
-    const institution = student.institution || 'Non spécifiée';
-    if (!acc[institution]) {
-      acc[institution] = {
+    const institutionName = getInstitutionName(student.institution);
+    
+    if (!acc[institutionName]) {
+      acc[institutionName] = {
         count: 0,
+        totalPayments: 0
       };
     }
     
-    acc[institution].count++;
+    acc[institutionName].count++;
+    
+    // Calculer les paiements pour cette institution via studentId
+    const studentPayments = payments.filter(payment => payment.studentId === student.id);
+    acc[institutionName].totalPayments += studentPayments.reduce((sum, payment) => sum + payment.amount, 0);
     
     return acc;
-  }, {} as Record<string, { count: number }>);
+  }, {} as Record<string, { count: number; totalPayments: number }>);
+
+  // Calcul des statistiques globales
+  const totalStudents = students.length;
+  const totalInstitutions = Object.keys(institutionStats).length;
+  const totalPayments = payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const validPayments = payments.filter(p => p.status === 'VALID').length;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-accent">
-        <p className="text-gray-800 text-lg">Chargement...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mt-4">Chargement des données...</p>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-accent">
-        <p className="text-red-500 text-lg">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-red-500 text-lg mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Réessayer
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-accent flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-md p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800 text-center sm:text-left">
-          Tableau de bord Comptable
-        </h1>
-        <button
-          onClick={handleLogout}
-          className="flex items-center bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition w-full sm:w-auto justify-center"
-        >
-          <FaSignOutAlt className="mr-2" /> Déconnexion
-        </button>
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Tableau de Bord Comptable</h1>
+              <p className="text-gray-600 mt-1">Gestion des paiements et étudiants</p>
+            </div>
+            {/* <button
+              onClick={handleLogout}
+              className="flex items-center bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+            >
+              <FaSignOutAlt className="mr-2" />
+              Déconnexion
+            </button> */}
+          </div>
+        </div>
       </header>
 
       {/* Content */}
-      <main className="flex-1 p-4 sm:p-6">
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* Cartes statistiques */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-          <div className="bg-white shadow rounded-xl p-4 sm:p-6 flex items-center">
-            <FaUserGraduate className="text-2xl sm:text-3xl text-blue-500 mr-3 sm:mr-4" />
-            <div>
-              <p className="text-gray-600 text-sm sm:text-base">Étudiants total</p>
-              <h2 className="text-lg sm:text-xl font-bold">{students.length}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <FaUserGraduate className="text-3xl text-blue-600 mr-4" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Étudiants total</p>
+                <h2 className="text-2xl font-bold text-gray-900">{totalStudents}</h2>
+              </div>
             </div>
           </div>
-          <div className="bg-white shadow rounded-xl p-4 sm:p-6 flex items-center">
-            <FaUniversity className="text-2xl sm:text-3xl text-purple-500 mr-3 sm:mr-4" />
-            <div>
-              <p className="text-gray-600 text-sm sm:text-base">Institutions</p>
-              <h2 className="text-lg sm:text-xl font-bold">{Object.keys(institutionStats).length}</h2>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <FaUniversity className="text-3xl text-purple-600 mr-4" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Institutions</p>
+                <h2 className="text-2xl font-bold text-gray-900">{totalInstitutions}</h2>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <FaMoneyBillWave className="text-3xl text-green-600 mr-4" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Paiements total</p>
+                <h2 className="text-2xl font-bold text-gray-900">{totalPayments.toLocaleString()} FCFA</h2>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <FaMoneyBillWave className="text-3xl text-yellow-600 mr-4" />
+              <div>
+                <p className="text-sm font-medium text-gray-600">Paiements valides</p>
+                <h2 className="text-2xl font-bold text-gray-900">{validPayments}</h2>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Statistiques par institution */}
-        <div className="bg-white shadow rounded-xl p-4 sm:p-6 mb-6">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
-            Statistiques par Institution
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {Object.entries(institutionStats).map(([institution, stats]) => (
-              <div key={institution} className="border rounded-lg p-3 sm:p-4">
-                <h3 className="font-semibold text-gray-700 text-sm sm:text-base mb-2 truncate" title={institution}>
-                  {institution}
-                </h3>
-                <div className="space-y-1 text-xs sm:text-sm">
-                  <p className="flex justify-between">
-                    <span>Étudiants:</span>
-                    <span className="font-medium">{stats.count}</span>
-                  </p>
+        <div className="bg-white rounded-lg shadow mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Statistiques par Institution</h2>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(institutionStats).map(([institution, stats]) => (
+                <div key={institution} className="border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-semibold text-gray-800 mb-2 truncate">{institution}</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Étudiants:</span>
+                      <span className="font-medium">{stats.count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Paiements:</span>
+                      <span className="font-medium">{stats.totalPayments.toLocaleString()} FCFA</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Bouton d'action */}
-        <div className="flex justify-center sm:justify-end mb-6">
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <button
             onClick={() => navigate("/accountant/payment-management")}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg shadow hover:bg-blue-700 transition w-full sm:w-auto text-center"
+            className="bg-blue-600 text-white px-6 py-3 rounded-lg shadow hover:bg-blue-700 transition-colors flex-1 text-center"
           >
-            Gérer les paiements
+            Gérer les Paiements
+          </button>
+          <button
+            onClick={() => navigate("/accountant/stats")}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg shadow hover:bg-green-700 transition-colors flex-1 text-center"
+          >
+            Voir les Statistiques
           </button>
         </div>
 
         {/* Liste des étudiants */}
-        <div className="bg-white shadow rounded-xl p-4 sm:p-6">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">
-            Liste des Étudiants
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">Liste des Étudiants</h2>
+          </div>
+          <div className="p-6">
             {students.length > 0 ? (
-              students.map((student) => (
-                <StudentCard key={student.id} student={student} />
-              ))
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {students.map((student) => (
+                  <StudentCard key={student.id} student={student} />
+                ))}
+              </div>
             ) : (
-              <p className="text-gray-600 text-center col-span-full py-8">
-                Aucun étudiant trouvé.
-              </p>
+              <div className="text-center py-12">
+                <FaUserGraduate className="mx-auto text-4xl text-gray-400 mb-4" />
+                <p className="text-gray-500 text-lg">Aucun étudiant trouvé</p>
+                <button
+                  onClick={() => navigate("/secretary/student-registration")}
+                  className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Ajouter un étudiant
+                </button>
+              </div>
             )}
           </div>
         </div>

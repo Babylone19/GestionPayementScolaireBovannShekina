@@ -1,11 +1,20 @@
-export type UserRole = 'ADMIN' | 'SECRETARY' | 'ACCOUNTANT' | 'GUARD';
+// types/user.ts
+export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'SECRETARY' | 'ACCOUNTANT' | 'GUARD';
 
 export interface User {
   id: string;
   email: string;
   role: UserRole;
-  createdAt?: string; // Ajoutez cette ligne
-  updatedAt?: string; // Optionnel: si vous voulez aussi la date de mise à jour
+  isActive?: boolean;
+  institutionId?: string;
+  institution?: {
+    id: string;
+    name: string;
+    logo?: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+  lastLogin?: string;
 }
 
 export interface LoginCredentials {
@@ -17,4 +26,5 @@ export interface CreateUserDto {
   email: string;
   password: string;
   role: UserRole;
+  institutionId?: string;
 }

@@ -8,6 +8,7 @@ export const setToken = (token: string): void => {
 
 export const removeToken = (): void => {
   localStorage.removeItem('token');
+  localStorage.removeItem('user');
 };
 
 export const isAuthenticated = (): boolean => {
@@ -16,5 +17,27 @@ export const isAuthenticated = (): boolean => {
 
 export const getUserRole = (): string | null => {
   const user = localStorage.getItem('user');
-  return user ? JSON.parse(user).role : null;
+  if (user) {
+    try {
+      const userData = JSON.parse(user);
+      return userData.role || null;
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return null;
+    }
+  }
+  return null;
+};
+
+export const getUserData = (): any => {
+  const user = localStorage.getItem('user');
+  if (user) {
+    try {
+      return JSON.parse(user);
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return null;
+    }
+  }
+  return null;
 };

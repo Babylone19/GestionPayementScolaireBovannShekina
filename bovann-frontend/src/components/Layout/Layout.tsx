@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getToken, removeToken, getUserRole } from '../../utils/auth';
+import { useAuth } from '../../hooks/useAuth';
 import { 
   FaSignOutAlt, 
   FaTachometerAlt, 
@@ -13,22 +13,26 @@ import {
   FaBars,
   FaTimes,
   FaChevronDown,
-  FaChevronRight
+  FaChevronRight,
+  FaCog,
+  FaBuilding
 } from 'react-icons/fa';
+import { UserRole } from '../../types/user';
 
 interface LayoutProps {
   children: React.ReactNode;
-  role: string;
+  role: UserRole;
 }
 
 const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth(); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
   const handleLogout = () => {
-    removeToken();
+    logout(); 
     navigate('/');
   };
 
@@ -43,8 +47,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     }));
   };
 
-  const getRoleName = (role: string) => {
+  const getRoleName = (role: UserRole) => {
     switch (role) {
+      case 'SUPER_ADMIN': return 'Super Administrateur';
       case 'ADMIN': return 'Administrateur';
       case 'ACCOUNTANT': return 'Comptable';
       case 'SECRETARY': return 'Secrétaire';
@@ -54,6 +59,50 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
   };
 
   const menuItems = {
+    SUPER_ADMIN: [
+      { 
+        path: '/admin/dashboard', 
+        label: 'Tableau de bord', 
+        icon: FaTachometerAlt 
+      },
+      { 
+        key: 'user-management',
+        label: 'Gestion des utilisateurs', 
+        icon: FaUsers,
+        submenu: [
+          { path: '/admin/users/list', label: 'Liste des utilisateurs' },
+          { path: '/admin/users/create', label: 'Créer un utilisateur' }
+        ]
+      },
+      { 
+        key: 'student-management',
+        label: 'Gestion des étudiants', 
+        icon: FaUserGraduate,
+        submenu: [
+          { path: '/admin/students/list', label: 'Liste des étudiants' },
+          { path: '/admin/students/create', label: 'Ajouter un étudiant' }
+        ]
+      },
+      { 
+        key: 'payment-management',
+        label: 'Gestion des paiements', 
+        icon: FaMoneyBillWave,
+        submenu: [
+          { path: '/admin/payments/list', label: 'Liste des paiements' },
+          { path: '/admin/payments/by-student', label: 'Paiements par étudiant' }
+        ]
+      },
+      { 
+        key: 'institution-management',
+        label: 'Gestion institution', 
+        icon: FaBuilding,
+        submenu: [
+          { path: '/admin/institutions', label: 'Institutions' },
+          { path: '/admin/programs', label: 'Programmes' },
+          { path: '/admin/payment-types', label: 'Types de paiement' }
+        ]
+      }
+    ],
     ADMIN: [
       { 
         path: '/admin/dashboard', 
@@ -86,6 +135,16 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
           { path: '/admin/payments/list', label: 'Liste des paiements' },
           { path: '/admin/payments/by-student', label: 'Paiements par étudiant' }
         ]
+      },
+      { 
+        key: 'institution-management',
+        label: 'Gestion institution', 
+        icon: FaBuilding,
+        submenu: [
+          { path: '/admin/institutions', label: 'Institutions' },
+          { path: '/admin/programs', label: 'Programmes' },
+          { path: '/admin/payment-types', label: 'Types de paiement' }
+        ]
       }
     ],
     ACCOUNTANT: [
@@ -95,9 +154,9 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         label: 'Gestion des paiements', 
         icon: FaMoneyBillWave,
         submenu: [
-          { path: '/accountant/payments/list', label: 'Liste des paiements' },
-          { path: '/accountant/payments/by-student', label: 'Paiements par étudiant' },
-          { path: '/accountant/payments/reports', label: 'Rapports' }
+          { path: '/accountant/payment-management', label: 'Gestion des paiements' },
+          { path: '/accountant/stats', label: 'Statistiques' },
+          { path: '/accountant/reports', label: 'Rapports financiers' }
         ]
       },
     ],
@@ -108,10 +167,14 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
         label: 'Gestion des étudiants', 
         icon: FaUserGraduate,
         submenu: [
-          { path: '/secretary/students/list', label: 'Liste des étudiants' },
-          { path: '/secretary/students/create', label: 'Ajouter un étudiant' },
-          { path: '/secretary/students/import', label: 'Importer des étudiants' }
+          // { path: '/secretary/student-management', label: 'Gestion des étudiants' },
+          { path: '/secretary/student-registration', label: 'Inscription étudiant' }
         ]
+      },
+      { 
+        path: '/secretary/document', 
+        label: 'Documents Etudiants', 
+        icon: FaMoneyBillWave 
       },
     ],
     GUARD: [
@@ -120,7 +183,7 @@ const Layout: React.FC<LayoutProps> = ({ children, role }) => {
     ],
   };
 
-  const currentMenu = menuItems[role as keyof typeof menuItems] || [];
+  const currentMenu = menuItems[role] || [];
 
   const isActive = (path: string) => {
     return location.pathname === path || location.pathname.startsWith(path + '/');

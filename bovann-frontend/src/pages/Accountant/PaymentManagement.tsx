@@ -5,6 +5,9 @@ import { Student } from '../../types/student';
 import { Payment, PaymentStatus, CreatePaymentDto } from '../../types/payment';
 import { useNavigate } from 'react-router-dom';
 import API_CONFIG from '../../config/apiConfig';
+import { extractStudentsFromResponse, getInstitutionName } from '../../utils/helpers';
+import { usePaymentTypes } from '../../hooks/usePaymentTypes';
+import { PaymentType } from '../../types/paymentType';
 
 const PaymentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -19,6 +22,7 @@ const PaymentManagement: React.FC = () => {
   const [validUntil, setValidUntil] = useState<string>(
     new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]
   );
+  const [selectedPaymentType, setSelectedPaymentType] = useState<string>('');
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +35,11 @@ const PaymentManagement: React.FC = () => {
   
   const navigate = useNavigate();
 
+  // Utiliser le hook pour les types de paiement
+  const { paymentTypes, loading: paymentTypesLoading } = usePaymentTypes(
+    selectedStudent?.institutionId
+  );
+
   const generateReference = () => {
     return `PAY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   };
@@ -38,6 +47,19 @@ const PaymentManagement: React.FC = () => {
   useEffect(() => {
     setReference(generateReference());
   }, []);
+
+  // Filtrer les types de paiement actifs
+  const activePaymentTypes = paymentTypes.filter(pt => pt.isActive);
+
+  // Mettre à jour le montant quand un type de paiement est sélectionné
+  useEffect(() => {
+    if (selectedPaymentType) {
+      const selectedType = activePaymentTypes.find(pt => pt.id === selectedPaymentType);
+      if (selectedType && selectedType.amount) {
+        setAmount(selectedType.amount);
+      }
+    }
+  }, [selectedPaymentType, activePaymentTypes]);
 
   useEffect(() => {
     const fetchStudents = async () => {
@@ -48,7 +70,8 @@ const PaymentManagement: React.FC = () => {
           return;
         }
         setLoading(true);
-        const studentsList = await getStudents(token);
+        const studentsResponse = await getStudents(token);
+        const studentsList = extractStudentsFromResponse(studentsResponse);
         setStudents(studentsList);
         setFilteredStudents(studentsList);
       } catch (err) {
@@ -68,7 +91,8 @@ const PaymentManagement: React.FC = () => {
   const getUniqueInstitutions = (): string[] => {
     const institutionsSet = new Set<string>();
     students.forEach(student => {
-      institutionsSet.add(student.institution);
+      const institutionName = getInstitutionName(student.institution);
+      institutionsSet.add(institutionName);
     });
     return ['all', ...Array.from(institutionsSet)];
   };
@@ -79,13 +103,16 @@ const PaymentManagement: React.FC = () => {
     let filtered = students;
 
     if (selectedInstitution !== 'all') {
-      filtered = filtered.filter(student => student.institution === selectedInstitution);
+      filtered = filtered.filter(student => {
+        const studentInstitution = getInstitutionName(student.institution);
+        return studentInstitution === selectedInstitution;
+      });
     }
 
     if (searchTerm) {
       filtered = filtered.filter(student =>
         `${student.lastName} ${student.firstName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.institution.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        getInstitutionName(student.institution).toLowerCase().includes(searchTerm.toLowerCase()) ||
         (student.email && student.email.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
@@ -102,9 +129,19 @@ const PaymentManagement: React.FC = () => {
     
     console.log("Etudiant selectionne:", student);
     console.log("ID etudiant:", student.id);
+    console.log("Institution etudiant:", student.institutionId);
 
     setSelectedStudent(student);
     setShowStudentList(false);
+    // Réinitialiser le formulaire de paiement
+    setSelectedPaymentType('');
+    setAmount(0);
+    setDetails('');
+    setReference(generateReference());
+    setQrCodeUrl(null); // Réinitialiser le QR code
+    setError(null); // CORRECTION : Réinitialiser les erreurs
+    setSuccess(null); // CORRECTION : Réinitialiser les messages de succès
+    
     try {
       const response = await fetch(`${API_CONFIG.PAYMENTS}?studentId=${student.id}`, {
         headers: {
@@ -114,15 +151,31 @@ const PaymentManagement: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("Erreur reponse paiements:", errorText);
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.message || errorText;
+        } catch {
+          errorMessage = errorText || `HTTP error! status: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
-      if (data.success && data.payments) {
-        setPayments(data.payments);
+      console.log("Donnees paiements recus:", data); // DEBUG
+      
+      if (data.success) {
+        // CORRECTION : Vérifier si data.payments existe, sinon utiliser data.data.payments
+        const paymentsData = data.payments || data.data?.payments || [];
+        setPayments(paymentsData);
+        
+        if (paymentsData.length === 0) {
+          console.log("Aucun paiement trouve pour cet etudiant");
+        }
       } else {
-        setError('Erreur lors de la recuperation des paiements.');
+        throw new Error(data.message || 'Erreur lors de la recuperation des paiements.');
       }
     } catch (err) {
       console.error("Erreur detaillee:", err);
@@ -150,6 +203,31 @@ const PaymentManagement: React.FC = () => {
       return false;
     }
 
+    if (!selectedPaymentType) {
+      setError('Veuillez selectionner un type de paiement');
+      return false;
+    }
+
+    // Validation des dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Réinitialiser l'heure à minuit
+
+    const fromDate = new Date(validFrom);
+    fromDate.setHours(0, 0, 0, 0);
+
+    const untilDate = new Date(validUntil);
+    untilDate.setHours(23, 59, 59, 999); // Fin de journée
+
+    if (fromDate < today) {
+      setError("La date de début ne peut pas être dans le passé");
+      return false;
+    }
+
+    if (untilDate <= fromDate) {
+      setError("La date de fin doit être après la date de début");
+      return false;
+    }
+
     setError(null);
     return true;
   };
@@ -174,19 +252,54 @@ const PaymentManagement: React.FC = () => {
       return;
     }
 
+    if (!selectedPaymentType) {
+      setError("Type de paiement non selectionne");
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setShowConfirmation(false);
 
-    // CORRECTION : Conversion des dates en objets Date
+    // DEBUG: Afficher les IDs pour le debug
+    console.log("DEBUG IDs:", {
+      studentId: selectedStudent.id,
+      studentInstitutionId: selectedStudent.institutionId,
+      selectedPaymentType: selectedPaymentType
+    });
+
+    // CORRECTION : Préparation des dates pour éviter les problèmes de fuseau horaire
+    const fromDate = new Date(validFrom);
+    fromDate.setHours(0, 0, 0, 0); // Début de journée
+
+    const untilDate = new Date(validUntil);
+    untilDate.setHours(23, 59, 59, 999); // Fin de journée
+
+    console.log("DEBUG Dates corrigées:", {
+      validFrom,
+      validUntil,
+      fromDate: fromDate.toISOString(),
+      untilDate: untilDate.toISOString()
+    });
+
+    // CORRECTION : Vérifier que l'institutionId de l'étudiant est valide
+    if (!selectedStudent.institutionId) {
+      setError("L'étudiant n'a pas d'institution associée");
+      setLoading(false);
+      return;
+    }
+
+    // Données de paiement complètes avec paymentTypeId et institutionId
     const paymentData = {
       studentId: selectedStudent.id,
       amount: amount,
       currency,
       reference,
       details: details || `Paiement pour ${selectedStudent.firstName} ${selectedStudent.lastName}`,
-      validFrom: new Date(validFrom), // Conversion en Date
-      validUntil: new Date(validUntil), // Conversion en Date
+      validFrom: fromDate.toISOString(),
+      validUntil: untilDate.toISOString(),
+      paymentTypeId: selectedPaymentType,
+      institutionId: selectedStudent.institutionId
     };
 
     console.log("Donnees de paiement envoyees:", paymentData);
@@ -219,11 +332,18 @@ const PaymentManagement: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log("Donnees reponse:", data);
-      
+      console.log("Donnees reponse completes:", data);
+      console.log("Structure data:", {
+        success: data.success,
+        hasData: !!data.data,
+        hasAccessCard: data.data?.accessCard ? 'OUI' : 'NON',
+        hasQrData: data.data?.accessCard?.qrData ? 'OUI' : 'NON'
+      });
+
       if (data.success) {
+        // CORRECTION : Le payment est dans data.data.payment
         const newPayment = {
-          ...data.payment,
+          ...data.data.payment, // Changé de data.payment à data.data.payment
           currency: currency,
           reference: reference,
           details: details,
@@ -231,14 +351,45 @@ const PaymentManagement: React.FC = () => {
 
         setPayments(prevPayments => [...prevPayments, newPayment]);
 
-        if (data.accessCard && data.accessCard.qrData) {
-          setQrCodeUrl(data.accessCard.qrData);
+        // CORRECTION : Accéder correctement au QR code via data.data.accessCard
+        let qrCodeData = null;
+        
+        // Vérifier d'abord si data.data.accessCard existe
+        if (data.data && data.data.accessCard && data.data.accessCard.qrData) {
+          const qrData = data.data.accessCard.qrData;
+          console.log("QR Data reçu:", qrData.substring(0, 100) + "...");
+          
+          if (qrData.startsWith('data:image')) {
+            qrCodeData = qrData;
+          } else if (qrData.startsWith('http')) {
+            qrCodeData = qrData;
+          } else {
+            // Supposer que c'est du base64 sans le prefixe
+            qrCodeData = `data:image/png;base64,${qrData}`;
+          }
+          
+          setQrCodeUrl(qrCodeData);
+          console.log("QR Code configuré avec succès");
+        } else {
+          console.log("DEBUG - Pas de QR code trouvé:", {
+            hasData: !!data.data,
+            hasAccessCard: data.data?.accessCard ? 'OUI' : 'NON',
+            hasQrData: data.data?.accessCard?.qrData ? 'OUI' : 'NON',
+            dataKeys: data.data ? Object.keys(data.data) : 'none',
+            accessCardKeys: data.data?.accessCard ? Object.keys(data.data.accessCard) : 'none'
+          });
+          setQrCodeUrl(null);
         }
 
         setSuccess(`Paiement de ${amount.toLocaleString()} ${currency} enregistre avec succes !`);
+        
+        // Réinitialiser le formulaire
         setAmount(0);
         setDetails('');
+        setSelectedPaymentType('');
         setReference(generateReference());
+        setValidFrom(new Date().toISOString().split('T')[0]);
+        setValidUntil(new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]);
       } else {
         throw new Error(data.message || 'Erreur lors de l\'enregistrement du paiement.');
       }
@@ -333,6 +484,9 @@ const PaymentManagement: React.FC = () => {
     setQrCodeUrl(null);
     setAmount(0);
     setDetails('');
+    setSelectedPaymentType('');
+    setError(null); // CORRECTION : Réinitialiser les erreurs
+    setSuccess(null); // CORRECTION : Réinitialiser les messages de succès
   };
 
   const formatDate = (dateString: string | Date | undefined): string => {
@@ -341,8 +495,10 @@ const PaymentManagement: React.FC = () => {
     return date.toLocaleDateString('fr-FR');
   };
 
-  const getStatusColor = (status: PaymentStatus): string => {
-    switch (status) {
+  // CORRECTION : Gestion des valeurs undefined
+  const getStatusColor = (status: PaymentStatus | string | undefined): string => {
+    const statusValue = status || 'PENDING';
+    switch (statusValue) {
       case 'VALID':
         return 'text-green-600 bg-green-100';
       case 'PENDING':
@@ -354,8 +510,10 @@ const PaymentManagement: React.FC = () => {
     }
   };
 
-  const getStatusText = (status: PaymentStatus): string => {
-    switch (status) {
+  // CORRECTION : Gestion des valeurs undefined
+  const getStatusText = (status: PaymentStatus | string | undefined): string => {
+    const statusValue = status || 'PENDING';
+    switch (statusValue) {
       case 'VALID':
         return 'Valide';
       case 'PENDING':
@@ -363,33 +521,33 @@ const PaymentManagement: React.FC = () => {
       case 'EXPIRED':
         return 'Expire';
       default:
-        return status;
+        return statusValue;
     }
   };
 
   const totalValidAmount = payments
     .filter(payment => payment.status === 'VALID')
-    .reduce((sum, payment) => sum + payment.amount, 0);
+    .reduce((sum, payment) => sum + (payment.amount || 0), 0);
 
   if (loading && students.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-accent">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <p className="text-gray-800 text-lg">Chargement...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-accent flex flex-col p-6">
-      <header className="bg-red-600 shadow-md p-4 flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 flex flex-col p-6">
+      <header className="bg-white shadow-md p-4 flex justify-between items-center mb-6 rounded-lg">
         <div className="flex items-center space-x-4">
           <button
             onClick={handleBackToDashboard}
-            className="bg-white text-red-600 px-4 py-2 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-white"
+            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             ← Retour au Dashboard
           </button>
-          <h1 className="text-2xl font-bold text-white">Gestion des Paiements</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Gestion des Paiements</h1>
         </div>
       </header>
 
@@ -430,7 +588,7 @@ const PaymentManagement: React.FC = () => {
                   <select
                     value={selectedInstitution}
                     onChange={(e) => setSelectedInstitution(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
                     {institutions.map((institution) => (
                       <option key={institution} value={institution}>
@@ -449,7 +607,7 @@ const PaymentManagement: React.FC = () => {
                     placeholder="Rechercher un etudiant..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -466,7 +624,7 @@ const PaymentManagement: React.FC = () => {
                       setSelectedInstitution('all');
                       setSearchTerm('');
                     }}
-                    className="text-red-600 hover:text-red-800 font-medium"
+                    className="text-blue-600 hover:text-blue-800 font-medium"
                   >
                     Reinitialiser les filtres
                   </button>
@@ -485,13 +643,13 @@ const PaymentManagement: React.FC = () => {
                     <div
                       key={student.id}
                       onClick={() => loadStudentPayments(student)}
-                      className="bg-gray-50 p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-red-300 hover:bg-red-50 transition-colors duration-200"
+                      className="bg-gray-50 p-4 rounded-lg border border-gray-200 cursor-pointer hover:border-blue-300 hover:bg-blue-50 transition-colors duration-200"
                     >
                       <h4 className="font-semibold text-gray-800">
                         {student.lastName} {student.firstName}
                       </h4>
                       <p className="text-sm text-gray-600 mt-1">
-                        <strong>Institution:</strong> {student.institution}
+                        <strong>Institution:</strong> {getInstitutionName(student.institution)}
                       </p>
                       {student.email && (
                         <p className="text-sm text-gray-500 mt-1">
@@ -515,7 +673,7 @@ const PaymentManagement: React.FC = () => {
                         setSelectedInstitution('all');
                         setSearchTerm('');
                       }}
-                      className="mt-2 text-red-600 hover:text-red-800 font-medium"
+                      className="mt-2 text-blue-600 hover:text-blue-800 font-medium"
                     >
                       Reinitialiser les filtres
                     </button>
@@ -544,83 +702,128 @@ const PaymentManagement: React.FC = () => {
                   <strong>Montant total valide:</strong> {totalValidAmount.toLocaleString()} {currency}
                 </p>
                 <p className="text-blue-700">
-                  <strong>Institution:</strong> {selectedStudent.institution}
+                  <strong>Institution:</strong> {getInstitutionName(selectedStudent.institution)}
                 </p>
               </div>
 
               <div className="space-y-4 mb-6 bg-white p-4 rounded-lg shadow border border-gray-200">
                 <h4 className="font-semibold">Nouveau Paiement</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Montant a ajouter ({currency})</label>
-                    <input
-                      type="number"
-                      value={amount}
-                      onChange={(e) => setAmount(Number(e.target.value))}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
-                      min="0"
-                    />
-                    <p className="text-sm text-gray-500 mt-1">
-                      Montant total apres ajout: <strong>{(totalValidAmount + amount).toLocaleString()} {currency}</strong>
+                
+                {paymentTypesLoading ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600">Chargement des types de paiement...</p>
+                  </div>
+                ) : activePaymentTypes.length === 0 ? (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                    <p className="text-yellow-800 text-sm">
+                      Aucun type de paiement actif disponible pour cette institution.
+                      Veuillez contacter l'administrateur.
                     </p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Devise</label>
-                    <select
-                      value={currency}
-                      onChange={(e) => setCurrency(e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Type de paiement *</label>
+                        <select
+                          value={selectedPaymentType}
+                          onChange={(e) => setSelectedPaymentType(e.target.value)}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                          required
+                        >
+                          <option value="">Sélectionner un type de paiement</option>
+                          {activePaymentTypes.map((paymentType) => (
+                            <option key={paymentType.id} value={paymentType.id}>
+                              {paymentType.name} {paymentType.amount ? `- ${paymentType.amount.toLocaleString()} ${currency}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Montant ({currency})</label>
+                        <input
+                          type="number"
+                          value={amount}
+                          onChange={(e) => setAmount(Number(e.target.value))}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                          min="0"
+                          disabled={selectedPaymentType !== ''}
+                        />
+                        <p className="text-sm text-gray-500 mt-1">
+                          {selectedPaymentType ? 
+                            'Montant prédéfini par le type de paiement' : 
+                            'Sélectionnez un type de paiement ou saisissez un montant'
+                          }
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Devise</label>
+                        <select
+                          value={currency}
+                          onChange={(e) => setCurrency(e.target.value)}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        >
+                          <option value="XOF">XOF</option>
+                          <option value="EUR">EUR</option>
+                          <option value="USD">USD</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Reference</label>
+                        <input
+                          type="text"
+                          value={reference}
+                          readOnly
+                          className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm p-2 border"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Details</label>
+                        <input
+                          type="text"
+                          value={details}
+                          onChange={(e) => setDetails(e.target.value)}
+                          placeholder="Details du paiement"
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Valide a partir de</label>
+                        <input
+                          type="date"
+                          value={validFrom}
+                          onChange={(e) => setValidFrom(e.target.value)}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                          min={new Date().toISOString().split('T')[0]} // Empêcher la sélection de dates passées
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700">Valide jusqu'a</label>
+                        <input
+                          type="date"
+                          value={validUntil}
+                          onChange={(e) => setValidUntil(e.target.value)}
+                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                          min={validFrom} // La date de fin ne peut pas être avant la date de début
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={handleCreatePaymentClick}
+                      disabled={loading || amount <= 0 || !selectedPaymentType}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400"
                     >
-                      <option value="XOF">XOF</option>
-                      <option value="EUR">EUR</option>
-                      <option value="USD">USD</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Reference</label>
-                    <input
-                      type="text"
-                      value={reference}
-                      readOnly
-                      className="mt-1 block w-full rounded-md border-gray-300 bg-gray-100 shadow-sm p-2 border"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Details</label>
-                    <input
-                      type="text"
-                      value={details}
-                      onChange={(e) => setDetails(e.target.value)}
-                      placeholder="Details du paiement"
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Valide a partir de</label>
-                    <input
-                      type="date"
-                      value={validFrom}
-                      onChange={(e) => setValidFrom(e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Valide jusqu'a</label>
-                    <input
-                      type="date"
-                      value={validUntil}
-                      onChange={(e) => setValidUntil(e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
-                    />
-                  </div>
-                </div>
-                <button
-                  onClick={handleCreatePaymentClick}
-                  disabled={loading || amount <= 0}
-                  className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:bg-gray-400"
-                >
-                  {loading ? 'Enregistrement...' : `Ajouter ${amount.toLocaleString()} ${currency}`}
-                </button>
+                      {loading ? 'Enregistrement...' : `Ajouter ${amount.toLocaleString()} ${currency}`}
+                    </button>
+                  </>
+                )}
               </div>
 
               {qrCodeUrl && (
@@ -630,7 +833,7 @@ const PaymentManagement: React.FC = () => {
                     Ce QR code contient les informations cumulees de tous les paiements valides.
                     Il sera scanne pour verifier l'acces de l'etudiant.
                   </p>
-                  <img src={qrCodeUrl} alt="QR Code" className="w-48 border border-gray-300 mx-auto" />
+                  <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48 border border-gray-300 mx-auto" />
                   <div className="mt-4 text-center">
                     <button
                       onClick={downloadQrCode}
@@ -645,52 +848,66 @@ const PaymentManagement: React.FC = () => {
               <h4 className="font-semibold mt-6 mb-2">Historique des Paiements</h4>
               {payments.length > 0 ? (
                 <div className="space-y-2">
-                  {payments.map((payment) => (
-                    <div
-                      key={payment.id}
-                      className="p-4 bg-white rounded-lg shadow flex justify-between items-center border border-gray-200"
-                    >
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <strong>{payment.amount.toLocaleString()} {payment.currency || currency}</strong>
-                            <span className={`ml-2 px-2 py-1 rounded text-xs ${getStatusColor(payment.status)}`}>
-                              {getStatusText(payment.status)}
-                            </span>
+                  {payments.map((payment) => {
+                    // Trouver le type de paiement correspondant
+                    const paymentType = paymentTypes.find(pt => pt.id === payment.paymentTypeId);
+                    
+                    return (
+                      <div
+                        key={payment.id}
+                        className="p-4 bg-white rounded-lg shadow flex justify-between items-center border border-gray-200"
+                      >
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <strong>{(payment.amount || 0).toLocaleString()} {payment.currency || currency}</strong>
+                              <span className={`ml-2 px-2 py-1 rounded text-xs ${getStatusColor(payment.status)}`}>
+                                {getStatusText(payment.status)}
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              Ref: {payment.reference || 'N/A'}
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600">
-                            Ref: {payment.reference}
+                          
+                          {/* AFFICHAGE DU TYPE DE FRAIS */}
+                          {paymentType && (
+                            <p className="text-sm text-gray-700 mt-1">
+                              <strong>Type de frais:</strong> {paymentType.name}
+                              {paymentType.amount && ` (${paymentType.amount.toLocaleString()} ${currency})`}
+                            </p>
+                          )}
+                          
+                          {payment.details && (
+                            <p className="text-sm text-gray-600 mt-1">{payment.details}</p>
+                          )}
+                          <div className="text-sm text-gray-500 mt-1">
+                            {payment.validFrom && `Valide du: ${formatDate(payment.validFrom)} au: ${formatDate(payment.validUntil)}`}
                           </div>
                         </div>
-                        {payment.details && (
-                          <p className="text-sm text-gray-600 mt-1">{payment.details}</p>
-                        )}
-                        <div className="text-sm text-gray-500 mt-1">
-                          {payment.validFrom && `Valide du: ${formatDate(payment.validFrom)} au: ${formatDate(payment.validUntil)}`}
+                        <div className="ml-4">
+                          {(payment.status === 'PENDING') && (
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleUpdatePaymentStatus(payment.id, 'VALID')}
+                                disabled={loading}
+                                className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 text-sm disabled:bg-gray-400"
+                              >
+                                Valider
+                              </button>
+                              <button
+                                onClick={() => handleUpdatePaymentStatus(payment.id, 'EXPIRED')}
+                                disabled={loading}
+                                className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 text-sm disabled:bg-gray-400"
+                              >
+                                Rejeter
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div className="ml-4">
-                        {payment.status === 'PENDING' && (
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleUpdatePaymentStatus(payment.id, 'VALID')}
-                              disabled={loading}
-                              className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 text-sm disabled:bg-gray-400"
-                            >
-                              Valider
-                            </button>
-                            <button
-                              onClick={() => handleUpdatePaymentStatus(payment.id, 'EXPIRED')}
-                              disabled={loading}
-                              className="bg-red-600 text-white px-3 py-1 rounded-md hover:bg-red-700 text-sm disabled:bg-gray-400"
-                            >
-                              Rejeter
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-600">Aucun paiement trouve pour cet etudiant.</p>
@@ -727,7 +944,7 @@ const PaymentManagement: React.FC = () => {
               <button
                 onClick={confirmCreatePayment}
                 disabled={loading}
-                className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition disabled:bg-gray-400 w-full sm:w-auto"
+                className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition disabled:bg-gray-400 w-full sm:w-auto"
               >
                 {loading ? 'Ajout en cours...' : 'Confirmer l\'ajout'}
               </button>

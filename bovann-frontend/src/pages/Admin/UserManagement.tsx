@@ -1,20 +1,38 @@
-import React, { useState, ChangeEvent } from 'react';
+import React, { useState, ChangeEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getToken } from '../../utils/auth';
 import { createUser } from '../../api/users';
-import { CreateUserDto } from '../../types/user';
-import { FaUserPlus, FaSave, FaUserShield, FaUserTie, FaChartBar, FaShieldAlt, FaArrowLeft } from 'react-icons/fa';
+import { CreateUserDto, UserRole } from '../../types/user';
+import { FaUserPlus, FaSave, FaUserShield, FaUserTie, FaChartBar, FaShieldAlt, FaArrowLeft, FaCrown } from 'react-icons/fa';
+import { useAuth } from '../../hooks/useAuth';
 
 const UserManagement: React.FC = () => {
   const [formData, setFormData] = useState<CreateUserDto>({
     email: '',
     password: '',
     role: 'SECRETARY',
+    institutionId: ''
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { user: currentUser } = useAuth();
+
+  // Rôles disponibles selon l'utilisateur connecté
+  const getAvailableRoles = (): UserRole[] => {
+    const allRoles: UserRole[] = ['SECRETARY', 'ACCOUNTANT', 'GUARD', 'ADMIN', 'SUPER_ADMIN'];
+    
+    if (currentUser?.role === 'SUPER_ADMIN') {
+      return allRoles; // SUPER_ADMIN peut créer tous les rôles
+    }
+    
+    if (currentUser?.role === 'ADMIN') {
+      return ['SECRETARY', 'ACCOUNTANT', 'GUARD', 'ADMIN']; // ADMIN ne peut pas créer SUPER_ADMIN
+    }
+    
+    return ['SECRETARY', 'ACCOUNTANT', 'GUARD']; // Par défaut
+  };
 
   const validateForm = () => {
     const { email, password, role } = formData;
@@ -53,7 +71,19 @@ const UserManagement: React.FC = () => {
         return;
       }
 
-      await createUser(token, formData);
+      // Préparer les données pour l'API
+      const userData: CreateUserDto = {
+        email: formData.email,
+        password: formData.password,
+        role: formData.role
+      };
+
+      // Si l'utilisateur connecté a une institution, l'assigner automatiquement
+      if (currentUser?.institutionId) {
+        userData.institutionId = currentUser.institutionId;
+      }
+
+      await createUser(token, userData);
       setSuccess('Utilisateur créé avec succès !');
 
       // Réinitialiser le formulaire
@@ -61,12 +91,15 @@ const UserManagement: React.FC = () => {
         email: '',
         password: '',
         role: 'SECRETARY',
+        institutionId: currentUser?.institutionId || ''
       });
       
     } catch (error: any) {
       console.error('Erreur lors de la création de l\'utilisateur:', error);
       if (error.response?.data?.message) {
         setError(error.response.data.message);
+      } else if (error.message) {
+        setError(error.message);
       } else {
         setError('Erreur lors de la création de l\'utilisateur');
       }
@@ -80,8 +113,9 @@ const UserManagement: React.FC = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const getRoleIcon = (role: string) => {
-    const icons: Record<string, React.ReactNode> = {
+  const getRoleIcon = (role: UserRole) => {
+    const icons: Record<UserRole, React.ReactNode> = {
+      'SUPER_ADMIN': <FaCrown className="text-yellow-500" />,
       'ADMIN': <FaUserShield className="text-red-500" />,
       'SECRETARY': <FaUserTie className="text-blue-500" />,
       'ACCOUNTANT': <FaChartBar className="text-green-500" />,
@@ -90,15 +124,29 @@ const UserManagement: React.FC = () => {
     return icons[role] || <FaUserShield />;
   };
 
-  const getRoleDescription = (role: string) => {
-    const descriptions: Record<string, string> = {
-      'ADMIN': 'Accès complet au système',
+  const getRoleDescription = (role: UserRole) => {
+    const descriptions: Record<UserRole, string> = {
+      'SUPER_ADMIN': 'Accès complet à toutes les institutions',
+      'ADMIN': 'Accès complet au système de l\'institution',
       'SECRETARY': 'Gestion des étudiants et inscriptions',
       'ACCOUNTANT': 'Gestion des paiements et finances',
       'GUARD': 'Scan des cartes et contrôle d\'accès'
     };
-    return descriptions[role] || 'Rôle utilisateur';
+    return descriptions[role];
   };
+
+  const getRoleDisplayName = (role: UserRole) => {
+    const names: Record<UserRole, string> = {
+      'SUPER_ADMIN': 'Super Administrateur',
+      'ADMIN': 'Administrateur',
+      'SECRETARY': 'Secrétaire',
+      'ACCOUNTANT': 'Comptable',
+      'GUARD': 'Agent de sécurité'
+    };
+    return names[role];
+  };
+
+  const availableRoles = getAvailableRoles();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -124,7 +172,10 @@ const UserManagement: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-gray-800">Ajouter un Utilisateur</h1>
-                <p className="text-gray-600 mt-1">Créez un nouveau compte utilisateur avec les permissions appropriées</p>
+                <p className="text-gray-600 mt-1">
+                  Créez un nouveau compte utilisateur avec les permissions appropriées
+                  {currentUser?.institution?.name && ` pour ${currentUser.institution.name}`}
+                </p>
               </div>
               <button
                 onClick={() => navigate('/admin/users/list')}
@@ -226,12 +277,27 @@ const UserManagement: React.FC = () => {
                       className="w-full border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                       required
                     >
-                      <option value="SECRETARY">Secrétaire</option>
-                      <option value="ACCOUNTANT">Comptable</option>
-                      <option value="GUARD">Agent de sécurité</option>
-                      <option value="ADMIN">Administrateur</option>
+                      {availableRoles.map((role) => (
+                        <option key={role} value={role}>
+                          {getRoleDisplayName(role)}
+                        </option>
+                      ))}
                     </select>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Rôle actuel: {getRoleDisplayName(currentUser?.role || 'ADMIN')}
+                    </p>
                   </div>
+
+                  {currentUser?.institution?.name && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-blue-700">
+                        <strong>Institution:</strong> {currentUser.institution.name}
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        L'utilisateur sera automatiquement assigné à cette institution
+                      </p>
+                    </div>
+                  )}
 
                   <div className="flex flex-col sm:flex-row gap-3 justify-end pt-4">
                     <button
@@ -269,7 +335,7 @@ const UserManagement: React.FC = () => {
                 </h3>
                 
                 <div className="space-y-4">
-                  {['ADMIN', 'SECRETARY', 'ACCOUNTANT', 'GUARD'].map((role) => (
+                  {availableRoles.map((role) => (
                     <div 
                       key={role}
                       className={`p-4 rounded-lg border-2 transition-all ${
@@ -284,10 +350,7 @@ const UserManagement: React.FC = () => {
                         </div>
                         <div>
                           <h4 className="font-semibold text-gray-800">
-                            {role === 'ADMIN' && 'Administrateur'}
-                            {role === 'SECRETARY' && 'Secrétaire'}
-                            {role === 'ACCOUNTANT' && 'Comptable'}
-                            {role === 'GUARD' && 'Agent de sécurité'}
+                            {getRoleDisplayName(role)}
                           </h4>
                           <p className="text-xs text-gray-600">
                             {getRoleDescription(role)}
@@ -303,8 +366,10 @@ const UserManagement: React.FC = () => {
                     ⚠️ Important
                   </h4>
                   <p className="text-yellow-700 text-xs">
-                    Les administrateurs ont un accès complet au système. 
-                    Attribuez ce rôle avec prudence.
+                    {currentUser?.role === 'SUPER_ADMIN' 
+                      ? 'En tant que Super Admin, vous pouvez créer tous les types de rôles.'
+                      : 'Les administrateurs ont un accès complet au système. Attribuez ce rôle avec prudence.'
+                    }
                   </p>
                 </div>
               </div>
@@ -319,7 +384,10 @@ const UserManagement: React.FC = () => {
               <li>• L'email doit être valide et unique dans le système</li>
               <li>• Le mot de passe doit contenir au moins 6 caractères</li>
               <li>• Choisissez le rôle approprié selon les responsabilités de l'utilisateur</li>
-              <li>• L'utilisateur recevra ses identifiants par email</li>
+              <li>• L'utilisateur sera automatiquement assigné à votre institution</li>
+              {currentUser?.role !== 'SUPER_ADMIN' && (
+                <li>• Vous ne pouvez pas créer d'utilisateurs avec un rôle supérieur au vôtre</li>
+              )}
             </ul>
           </div>
         </div>
